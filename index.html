@@ -71,7 +71,9 @@
     startButton.disabled = true;
     status.textContent = "Загружаю AR-библиотеку…";
     Promise.all([
-      import("https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js"),
+      // Match Zappar Three.js v2.1.0's Three.js dependency. Loading another
+      // Three version creates incompatible texture classes and a black feed.
+      import("https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.module.js"),
       import("https://cdn.jsdelivr.net/npm/@zappar/zappar-threejs@2.1.0/+esm")
     ]).then(([threeModule, zapparModule]) => {
       THREE = threeModule;
