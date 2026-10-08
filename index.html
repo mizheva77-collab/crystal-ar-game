@@ -48,45 +48,58 @@
     <button id="start">Начать AR-игру</button>
     <div class="hint">Нужен современный мобильный браузер и HTTPS. На iPhone открой страницу в Safari.</div>
   </section>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://libs.zappar.com/zappar-threejs/*/zappar-threejs.js"></script>
   <script>
     const startButton = document.querySelector("#start");
     const status = document.querySelector("#status");
     const intro = document.querySelector("#intro");
+    let THREE = null;
+    let ZapparThree = null;
+    let sdkLoadError = null;
     startButton.addEventListener("click", begin);
 
+    // Preload the ES modules while the intro is visible, so the permission
+    // request can run directly inside the user's tap on iOS Safari.
+    startButton.disabled = true;
+    status.textContent = "Загружаю AR-библиотеку…";
+    Promise.all([
+      import("https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js"),
+      import("https://cdn.jsdelivr.net/npm/@zappar/zappar-threejs@2.1.0/+esm")
+    ]).then(([threeModule, zapparModule]) => {
+      THREE = threeModule;
+      ZapparThree = zapparModule;
+      status.textContent = "Готово. Нажми «Начать AR-игру» и разреши доступ.";
+      startButton.disabled = false;
+    }).catch(error => {
+      sdkLoadError = error;
+      status.textContent = "AR-библиотека не загрузилась. Проверь интернет и обнови страницу.";
+      startButton.disabled = false;
+    });
+
     async function begin() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        status.textContent = "Этот браузер не поддерживает доступ к камере. Открой игру в Safari на iPhone или Chrome на Android по HTTPS.";
-        return;
-      }
       if (!window.isSecureContext) {
         status.textContent = "Камера и AR требуют защищённого адреса HTTPS. Опубликуй страницу на HTTPS и открой её снова.";
         return;
       }
-      if (!window.THREE || !window.ZapparThree) {
-        status.textContent = "AR-библиотека не загрузилась. Проверь интернет, обнови страницу и попробуй снова.";
+      if (!THREE || !ZapparThree) {
+        status.textContent = `AR-библиотека пока недоступна${sdkLoadError ? `: ${sdkLoadError.message || sdkLoadError}` : ". Подожди пару секунд и обнови страницу."}`;
         return;
       }
       startButton.disabled = true;
       try {
         status.textContent = "Запрашиваю доступ к камере и датчикам движения…";
         const granted = await ZapparThree.permissionRequest();
-        if (!granted) throw new Error("Разреши Safari доступ к камере и датчикам движения.");
-        await startTrackedGame();
+        if (!granted) throw new Error("Разреши доступ к камере и датчикам движения.");
+        await startTrackedGame(THREE, ZapparThree);
       } catch (error) {
         const detail = error?.message || String(error);
         status.textContent = detail.includes("NotAllowedError") || detail.includes("Permission")
           ? "Доступ запрещён. В настройках iPhone открой Safari → Камера и Движение и выбери «Разрешить», затем обнови страницу."
-          : `Ошибка запуска AR: ${detail}. Обнови страницу и попробуй ещё раз.`;
+          : `Ошибка запуска AR: ${detail}. Проверь подключение к интернету и попробуй ещё раз.`;
         startButton.disabled = false;
       }
     }
 
-    async function startTrackedGame() {
-      const THREE = window.THREE;
-      const ZapparThree = window.ZapparThree;
+    async function startTrackedGame(THREE, ZapparThree) {
       const canvas = document.querySelector("#ar-canvas");
       const scoreLabel = document.querySelector("#score");
       const toast = document.querySelector("#toast");
