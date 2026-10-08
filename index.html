@@ -21,9 +21,10 @@
     .score { padding: 8px 13px; border: 1px solid #ffffff3a; border-radius: 15px; background: #10172bdc; text-align: center; backdrop-filter: blur(10px); }
     .score small { display: block; color: #c2cbea; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
     .score strong { font-size: 22px; }
+    .score .fps { color: #a8f8e9; font-size: 10px; letter-spacing: .04em; }
     .bottom { position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
     #status { display: inline-block; padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 16px; background: #0b1122e8; color: #edf3ff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 35px #0009; backdrop-filter: blur(10px); }
-    #reset { display: none; margin: 9px auto 0; min-height: 42px; padding: 0 16px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; }
+    #reset { position: relative; z-index: 6; display: none; margin: 9px auto 0; min-height: 46px; padding: 0 18px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; touch-action: manipulation; }
     .license { position: fixed; z-index: 4; bottom: max(5px, env(safe-area-inset-bottom)); right: 8px; color: #ffffff80; font-size: 8px; text-decoration: none; pointer-events: auto; }
     .arjs-loader, .a-enter-vr, .a-enter-ar { display: none !important; }
     .a-canvas { z-index: 0 !important; }
@@ -39,8 +40,11 @@
         this.status = document.querySelector('#status');
         this.score = document.querySelector('#score');
         this.resetButton = document.querySelector('#reset');
+        this.fpsLabel = document.querySelector('#fps');
         this.cameraPosition = new THREE.Vector3();
         this.crystalPosition = new THREE.Vector3();
+        this.fpsFrames = 0;
+        this.fpsTime = 0;
 
         this.el.addEventListener('loaded', () => {
           const floor = document.querySelector('#ground');
@@ -56,7 +60,11 @@
         this.el.addEventListener('realityerror', () => {
           this.status.textContent = 'AR не запустился. Открой ссылку в Safari или Chrome и проверь разрешение камеры.';
         });
-        this.resetButton.addEventListener('click', () => this.spawnField(null));
+        this.resetButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.spawnField(null);
+        });
       },
 
       spawnField(origin) {
@@ -66,29 +74,48 @@
         this.started = true;
         this.score.textContent = '0 / 5';
         this.resetButton.style.display = 'none';
-        const center = origin || new THREE.Vector3(0, 0, -1.7);
+        const center = origin ? origin.clone() : this.getCenterAhead();
         const offsets = [
-          [-0.75, -0.35], [0.18, -0.95], [0.82, -0.25],
-          [0.57, 0.72], [-0.55, 0.78],
+          [-1.15, -0.7], [-0.15, -1.55], [1.15, -0.65],
+          [1.05, 1.0], [-0.85, 1.15],
         ];
         offsets.forEach(([dx, dz], index) => {
           const crystal = document.createElement('a-entity');
           crystal.classList.add('crystal', 'clickable');
           crystal.dataset.index = String(index);
-          crystal.setAttribute('position', `${center.x + dx} ${center.y + 0.34} ${center.z + dz}`);
-          crystal.setAttribute('geometry', 'primitive: octahedron; radius: 0.24');
+          crystal.setAttribute('position', `${center.x + dx} ${center.y + 0.3} ${center.z + dz}`);
+          crystal.setAttribute('geometry', 'primitive: octahedron; radius: 0.21');
           crystal.setAttribute('material', `color: ${crystalColors[index]}; emissive: ${crystalColors[index]}; emissiveIntensity: 0.75; metalness: 0.18; roughness: 0.2`);
-          crystal.setAttribute('animation', `property: rotation; to: 0 360 0; loop: true; dur: ${2600 + index * 270}`);
-          crystal.setAttribute('animation__float', `property: position; dir: alternate; dur: ${900 + index * 100}; easing: easeInOutSine; loop: true; to: ${center.x + dx} ${center.y + 0.48} ${center.z + dz}`);
           crystal.addEventListener('click', () => this.collect(crystal));
           this.el.appendChild(crystal);
           this.crystals.push(crystal);
         });
-        this.status.textContent = 'Кристаллы появились! Подойди к ним или нажми прямо на кристалл.';
+        this.status.textContent = 'Кристаллы расставлены в комнате. Подойди к каждому ближе чем на метр и нажми.';
+      },
+
+      getCenterAhead() {
+        const camera = document.querySelector('#camera');
+        if (!camera || !camera.object3D) return new THREE.Vector3(0, 0, -1.5);
+        const position = camera.object3D.getWorldPosition(new THREE.Vector3());
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.object3D.getWorldQuaternion(new THREE.Quaternion()));
+        forward.y = 0;
+        if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
+        forward.normalize();
+        return new THREE.Vector3(position.x + forward.x * 1.6, 0, position.z + forward.z * 1.6);
       },
 
       collect(crystal) {
         if (!crystal.isConnected || crystal.dataset.collected === 'yes') return;
+        const camera = document.querySelector('#camera');
+        if (!camera || !camera.object3D) return;
+        camera.object3D.getWorldPosition(this.cameraPosition);
+        crystal.object3D.getWorldPosition(this.crystalPosition);
+        const dx = this.cameraPosition.x - this.crystalPosition.x;
+        const dz = this.cameraPosition.z - this.crystalPosition.z;
+        if (Math.hypot(dx, dz) > 1.05) {
+          this.status.textContent = 'Кристалл далеко — подойди ближе, примерно на один метр, чтобы собрать.';
+          return;
+        }
         crystal.dataset.collected = 'yes';
         crystal.classList.remove('clickable');
         crystal.setAttribute('animation__collect', 'property: scale; to: 0.001 0.001 0.001; dur: 220; easing: easeInQuad');
@@ -96,30 +123,34 @@
         this.collected += 1;
         this.score.textContent = `${this.collected} / 5`;
         if (this.collected === 5) {
-          this.status.textContent = 'Все кристаллы собраны! Нажми на пол, чтобы начать заново.';
+          this.status.textContent = 'Все кристаллы собраны! Нажми «Играть ещё раз», чтобы начать заново.';
           this.resetButton.style.display = 'block';
         } else {
           this.status.textContent = `Кристалл найден! Осталось ${5 - this.collected}. Ищи рядом.`;
         }
       },
 
-      tick() {
-        if (!this.started || this.collected >= 5) return;
-        const camera = document.querySelector('#camera');
-        if (!camera || !camera.object3D) return;
-        camera.object3D.getWorldPosition(this.cameraPosition);
-        for (const crystal of this.crystals) {
-          if (!crystal.isConnected || crystal.dataset.collected === 'yes') continue;
-          crystal.object3D.getWorldPosition(this.crystalPosition);
-          const dx = this.cameraPosition.x - this.crystalPosition.x;
-          const dz = this.cameraPosition.z - this.crystalPosition.z;
-          if (Math.hypot(dx, dz) < 0.68) this.collect(crystal);
+      tick(time) {
+        this.fpsFrames += 1;
+        if (!this.fpsTime) this.fpsTime = time;
+        const elapsed = time - this.fpsTime;
+        if (elapsed >= 1000) {
+          this.fpsLabel.textContent = `${Math.round(this.fpsFrames * 1000 / elapsed)} FPS`;
+          this.fpsFrames = 0;
+          this.fpsTime = time;
         }
       },
     });
 
     const mountARScene = () => {
       if (document.querySelector('a-scene')) return;
+      if (window.XR8 && XR8.XrController) {
+        XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
+      }
+      if (window.XR8 && XR8.LandingPage && XR8.LandingPage.configure) {
+        const crystalLogo = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#62f5dd"/><stop offset="1" stop-color="#a98aff"/></linearGradient></defs><path fill="url(#g)" d="M64 4 97 38 64 124 31 38z"/><path fill="#fff" fill-opacity=".75" d="M31 38h66L64 4z"/></svg>`;
+        XR8.LandingPage.configure({logoSrc: `data:image/svg+xml,${encodeURIComponent(crystalLogo)}`, logoAlt: 'Кристаллы комнаты'});
+      }
       const template = document.querySelector('#ar-scene-template');
       if (template) document.body.appendChild(template.content.cloneNode(true));
     };
@@ -136,18 +167,18 @@
 <body>
   <div class="hud">
     <div><div class="brand">AR · ОХОТА ЗА СОКРОВИЩАМИ</div><div class="title">Кристаллы комнаты</div></div>
-    <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong></div>
+    <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong><small id="fps" class="fps">… FPS</small></div>
   </div>
   <div class="bottom"><div id="status">Нажми «Начать AR», затем коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
   <a class="license" href="https://github.com/8thwall/engine/blob/main/LICENSE" target="_blank" rel="noopener">XR Engine: Niantic Spatial © 2026 · license</a>
 
   <template id="ar-scene-template">
-    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true; colorManagement: true" landing-page xrextras-loading xrextras-runtime-error xrweb="allowedDevices: any">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; precision: mediump; powerPreference: high-performance" landing-page xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
       <a-assets></a-assets>
       <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
-      <a-entity light="type: directional; intensity: 0.9; castShadow: true" position="1 4 2" shadow></a-entity>
+      <a-entity light="type: directional; intensity: 0.9" position="1 4 2"></a-entity>
       <a-light type="ambient" intensity="0.65"></a-light>
-      <a-box id="ground" class="cantap" scale="1000 2 1000" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28" shadow></a-box>
+      <a-box id="ground" class="cantap" scale="1000 2 1000" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28"></a-box>
     </a-scene>
   </template>
 </body>
