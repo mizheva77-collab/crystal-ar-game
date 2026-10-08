@@ -7,7 +7,6 @@
   <title>Кристаллы комнаты — AR-охота</title>
   <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1/dist/landing-page.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" crossorigin="anonymous" async data-preload-chunks="slam"></script>
   <style>
     :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -25,6 +24,16 @@
     .bottom { position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
     #status { display: inline-block; padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 16px; background: #0b1122e8; color: #edf3ff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 35px #0009; backdrop-filter: blur(10px); }
     #reset { position: relative; z-index: 6; display: none; margin: 9px auto 0; min-height: 46px; padding: 0 18px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; touch-action: manipulation; }
+    .launch-screen { position: fixed; z-index: 8; inset: 0; display: grid; place-items: center; padding: 22px; background: radial-gradient(ellipse at 50% 25%, #1c3150 0, #090e1c 65%, #070b14 100%); }
+    .launch-screen[hidden] { display: none; }
+    .launch-card { width: min(420px, 100%); padding: 30px 24px 24px; border: 1px solid #ffffff24; border-radius: 26px; background: linear-gradient(150deg, #18223ae8, #0b1224f5); box-shadow: 0 24px 80px #0008; text-align: center; }
+    .launch-crystal { width: 72px; height: 72px; margin: 0 auto 13px; filter: drop-shadow(0 0 20px #62f5dd66); }
+    .launch-kicker { color: #85f4e0; font-size: 10px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+    .launch-title { margin: 7px 0 10px; font-size: 27px; line-height: 1.05; font-weight: 850; }
+    .launch-copy { margin: 0 auto 20px; max-width: 310px; color: #c2cbea; font-size: 14px; line-height: 1.5; }
+    #start { width: 100%; min-height: 52px; border: 0; border-radius: 15px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-size: 16px; font-weight: 850; touch-action: manipulation; }
+    #start:disabled { opacity: .62; }
+    #launch-status { min-height: 18px; margin-top: 12px; color: #aebbd7; font-size: 12px; }
     .license { position: fixed; z-index: 4; bottom: max(5px, env(safe-area-inset-bottom)); right: 8px; color: #ffffff80; font-size: 8px; text-decoration: none; pointer-events: auto; }
     .arjs-loader, .a-enter-vr, .a-enter-ar { display: none !important; }
     .a-canvas { z-index: 0 !important; }
@@ -142,25 +151,44 @@
       },
     });
 
-    const mountARScene = () => {
-      if (document.querySelector('a-scene')) return;
-      if (window.XR8 && XR8.XrController) {
-        XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
-      }
-      if (window.XR8 && XR8.LandingPage && XR8.LandingPage.configure) {
-        const crystalLogo = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#62f5dd"/><stop offset="1" stop-color="#a98aff"/></linearGradient></defs><path fill="url(#g)" d="M64 4 97 38 64 124 31 38z"/><path fill="#fff" fill-opacity=".75" d="M31 38h66L64 4z"/></svg>`;
-        XR8.LandingPage.configure({logoSrc: `data:image/svg+xml,${encodeURIComponent(crystalLogo)}`, logoAlt: 'Кристаллы комнаты'});
-      }
-      const template = document.querySelector('#ar-scene-template');
-      if (template) document.body.appendChild(template.content.cloneNode(true));
+    let arEngineReady = false;
+    const prepareStartButton = () => {
+      arEngineReady = true;
+      const startButton = document.querySelector('#start');
+      const launchStatus = document.querySelector('#launch-status');
+      if (!startButton || !launchStatus) return;
+      startButton.disabled = false;
+      startButton.textContent = 'Начать AR';
+      launchStatus.textContent = 'Потребуется разрешить доступ к камере.';
     };
-    window.addEventListener('xrloaded', mountARScene, {once: true});
-    window.addEventListener('XRloaded', mountARScene, {once: true});
-    if (window.XR8) mountARScene();
+
+    const mountARScene = () => {
+      if (document.querySelector('a-scene')) return true;
+      if (!window.XR8 || !XR8.XrController) return false;
+      XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
+      const template = document.querySelector('#ar-scene-template');
+      if (!template) return false;
+      document.body.appendChild(template.content.cloneNode(true));
+      return true;
+    };
+
+    const startAR = () => {
+      if (!arEngineReady) return;
+      if (mountARScene()) document.querySelector('#launch-screen').hidden = true;
+      else document.querySelector('#launch-status').textContent = 'Не удалось запустить камеру. Обнови страницу и попробуй ещё раз.';
+    };
+
+    const bindStartButton = () => {
+      document.querySelector('#start')?.addEventListener('click', startAR);
+      if (arEngineReady) prepareStartButton();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindStartButton, {once: true});
+    else bindStartButton();
+    window.addEventListener('xrloaded', prepareStartButton, {once: true});
+    window.addEventListener('XRloaded', prepareStartButton, {once: true});
+    if (window.XR8) prepareStartButton();
     window.setTimeout(() => {
-      if (!document.querySelector('a-scene')) {
-        document.querySelector('#status').textContent = 'Движок AR долго не загружается. Обнови страницу и попробуй ещё раз.';
-      }
+      if (!arEngineReady) document.querySelector('#launch-status').textContent = 'AR долго загружается. Обнови страницу и попробуй ещё раз.';
     }, 20000);
   </script>
 </head>
@@ -169,11 +197,22 @@
     <div><div class="brand">AR · ОХОТА ЗА СОКРОВИЩАМИ</div><div class="title">Кристаллы комнаты</div></div>
     <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong><small id="fps" class="fps">… FPS</small></div>
   </div>
-  <div class="bottom"><div id="status">Нажми «Начать AR», затем коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
+  <div class="bottom"><div id="status">Коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
   <a class="license" href="https://github.com/8thwall/engine/blob/main/LICENSE" target="_blank" rel="noopener">XR Engine: Niantic Spatial © 2026 · license</a>
 
+  <div id="launch-screen" class="launch-screen">
+    <section class="launch-card" aria-labelledby="launch-title">
+      <svg class="launch-crystal" viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="crystal-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#62f5dd"/><stop offset="1" stop-color="#a98aff"/></linearGradient></defs><path fill="url(#crystal-gradient)" d="M64 4 97 38 64 124 31 38z"/><path fill="#fff" fill-opacity=".76" d="M31 38h66L64 4z"/></svg>
+      <div class="launch-kicker">AR · охота за сокровищами</div>
+      <h1 id="launch-title" class="launch-title">Кристаллы комнаты</h1>
+      <p class="launch-copy">Найди пять кристаллов в своей комнате. Чтобы забрать каждый, подойди к нему и нажми на экран.</p>
+      <button id="start" type="button" disabled>Загружаем AR…</button>
+      <div id="launch-status">Подготавливаем трекинг комнаты…</div>
+    </section>
+  </div>
+
   <template id="ar-scene-template">
-    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance" landing-page xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
       <a-assets></a-assets>
       <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
       <a-entity light="type: directional; intensity: 0.9" position="1 4 2"></a-entity>
