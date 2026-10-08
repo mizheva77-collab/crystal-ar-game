@@ -48,6 +48,8 @@
     <button id="start">Начать AR-игру</button>
     <div class="hint">Нужен современный мобильный браузер и HTTPS. На iPhone открой страницу в Safari.</div>
   </section>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://libs.zappar.com/zappar-threejs/*/zappar-threejs.js"></script>
   <script>
     const startButton = document.querySelector("#start");
     const status = document.querySelector("#status");
@@ -63,30 +65,28 @@
         status.textContent = "Камера и AR требуют защищённого адреса HTTPS. Опубликуй страницу на HTTPS и открой её снова.";
         return;
       }
+      if (!window.THREE || !window.ZapparThree) {
+        status.textContent = "AR-библиотека не загрузилась. Проверь интернет, обнови страницу и попробуй снова.";
+        return;
+      }
       startButton.disabled = true;
       try {
-        status.textContent = "Запрашиваю доступ к камере…";
-        // Request camera access immediately inside the tap gesture. iOS Safari
-        // may reject camera prompts that happen only after loading remote modules.
-        const permissionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        permissionStream.getTracks().forEach(track => track.stop());
-        status.textContent = "Камера разрешена. Загружаю пространственный трекинг…";
-
-        const [THREE, ZapparThree] = await Promise.all([
-          import("https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js"),
-          import("https://cdn.jsdelivr.net/npm/@zappar/zappar-threejs@2.1.0/+esm")
-        ]);
-        await startTrackedGame(THREE, ZapparThree);
+        status.textContent = "Запрашиваю доступ к камере и датчикам движения…";
+        const granted = await ZapparThree.permissionRequest();
+        if (!granted) throw new Error("Разреши Safari доступ к камере и датчикам движения.");
+        await startTrackedGame();
       } catch (error) {
         const detail = error?.message || String(error);
         status.textContent = detail.includes("NotAllowedError") || detail.includes("Permission")
-          ? "Доступ к камере не разрешён. В настройках iPhone открой Safari → Камера и выбери «Разрешить», затем обнови страницу."
-          : `Не удалось запустить AR: ${detail}. Проверь интернет и открой GitHub Pages в Safari.`;
+          ? "Доступ запрещён. В настройках iPhone открой Safari → Камера и Движение и выбери «Разрешить», затем обнови страницу."
+          : `Ошибка запуска AR: ${detail}. Обнови страницу и попробуй ещё раз.`;
         startButton.disabled = false;
       }
     }
 
-    async function startTrackedGame(THREE, ZapparThree) {
+    async function startTrackedGame() {
+      const THREE = window.THREE;
+      const ZapparThree = window.ZapparThree;
       const canvas = document.querySelector("#ar-canvas");
       const scoreLabel = document.querySelector("#score");
       const toast = document.querySelector("#toast");
@@ -95,6 +95,7 @@
       renderer.setSize(innerWidth, innerHeight, false);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      ZapparThree.glContextSet(renderer.getContext());
 
       const scene = new THREE.Scene();
       scene.add(new THREE.HemisphereLight(0xddeaff, 0x302650, 2.1));
@@ -103,10 +104,9 @@
       scene.add(keyLight);
 
       const camera = new ZapparThree.Camera();
-      const pipeline = new ZapparThree.Pipeline();
-      ZapparThree.glContextSet(pipeline, renderer.getContext());
+      scene.background = camera.backgroundTexture;
       const tracker = new ZapparThree.InstantWorldTracker();
-      const anchor = new ZapparThree.InstantWorldAnchorGroup(camera, pipeline, tracker);
+      const anchor = new ZapparThree.InstantWorldAnchorGroup(camera, tracker);
       scene.add(anchor);
 
       const crystals = [];
@@ -171,16 +171,13 @@
         renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       });
 
-      const granted = await ZapparThree.permissionRequest();
-      if (!granted) throw new Error("Библиотека трекинга не получила доступ к камере.");
-      await camera.start();
+      camera.start();
       tracker.setAnchorPoseFromCameraOffset(0, -0.35, -1.4);
       document.body.classList.add("live");
       intro.setAttribute("aria-hidden", "true");
 
       renderer.setAnimationLoop(() => {
-        pipeline.frameUpdate();
-        pipeline.processGL();
+        camera.updateFrame(renderer);
         const now = performance.now() * 0.001;
         crystals.forEach((crystal, i) => {
           if (crystal.userData.collected) return;
