@@ -23,10 +23,10 @@
     .score small { display: block; color: #c2cbea; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
     .score strong { font-size: 22px; }
     .score .fps { color: #a8f8e9; font-size: 10px; letter-spacing: .04em; }
-    .bottom { display: none; position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
+    .bottom { display: none; position: fixed; z-index: 8; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
     .bottom.active { display: block; }
     #status { display: inline-block; padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 16px; background: #0b1122e8; color: #edf3ff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 35px #0009; backdrop-filter: blur(10px); }
-    #reset { position: relative; z-index: 6; display: none; margin: 9px auto 0; min-height: 46px; padding: 0 18px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; touch-action: manipulation; }
+    #reset { position: relative; z-index: 12; display: none; margin: 9px auto 0; min-height: 50px; padding: 0 20px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     .launch-screen { position: fixed; z-index: 8; inset: 0; display: grid; place-items: center; padding: 22px; background: radial-gradient(ellipse at 50% 25%, #1c3150 0, #090e1c 65%, #070b14 100%); }
     .launch-screen[hidden] { display: none; }
     .launch-card { width: min(440px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px 22px 22px; border: 1px solid #ffffff24; border-radius: 26px; background: linear-gradient(150deg, #18223ae8, #0b1224f5); box-shadow: 0 24px 80px #0008; text-align: center; }
@@ -57,9 +57,9 @@
     .settings-panel button.primary { border: 0; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; }
     #hand-screen { position: fixed; z-index: 7; inset: 0; overflow: hidden; background: #050816; }
     #hand-screen[hidden] { display: none; }
-    #hands-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #hands-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
     .hand-shade { position: absolute; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
-    #hand-boxes { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    #hand-boxes { position: absolute; inset: 0; overflow: hidden; pointer-events: none; transform: scaleX(-1); }
     .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 12px; background: #ff25451f; box-shadow: 0 0 22px #ff254558, inset 0 0 20px #ff254522; }
     .hand-bar { position: absolute; z-index: 2; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; }
     #hand-back { width: 42px; height: 42px; border: 1px solid #ffffff3b; border-radius: 14px; background: #10172be8; color: #fff; font-size: 20px; }
@@ -73,12 +73,16 @@
     const crystalColors = ['#62f5dd', '#a98aff', '#ff76c8', '#ffd36a', '#76a9ff'];
 
     AFRAME.registerComponent('pot-bump', {
-      schema: {radius: {default: 0.82}},
+      schema: {radius: {default: 0.38}},
       init() {
         this.velocity = new THREE.Vector3();
         this.cameraPosition = new THREE.Vector3();
         this.potPosition = new THREE.Vector3();
+        this.previousCameraPosition = new THREE.Vector3();
+        this.angularVelocity = new THREE.Vector3();
         this.forward = new THREE.Vector3();
+        this.wasTouching = false;
+        this.hasPreviousCameraPosition = false;
       },
       tick(time, timeDelta) {
         if (currentLevel !== 1) return;
@@ -87,6 +91,11 @@
         const dt = Math.min((timeDelta || 16) / 1000, 0.05);
         camera.object3D.getWorldPosition(this.cameraPosition);
         this.el.object3D.getWorldPosition(this.potPosition);
+        const cameraSpeed = this.hasPreviousCameraPosition
+          ? this.cameraPosition.distanceTo(this.previousCameraPosition) / Math.max(dt, 0.001)
+          : 0;
+        this.previousCameraPosition.copy(this.cameraPosition);
+        this.hasPreviousCameraPosition = true;
         let dx = this.potPosition.x - this.cameraPosition.x;
         let dz = this.potPosition.z - this.cameraPosition.z;
         let distance = Math.hypot(dx, dz);
@@ -96,18 +105,44 @@
           dz = this.forward.z;
           distance = Math.hypot(dx, dz) || 1;
         }
-        if (distance < this.data.radius) {
-          const force = Math.min(3.2, (this.data.radius - distance) * 14);
-          this.velocity.x += dx / distance * force * dt;
-          this.velocity.z += dz / distance * force * dt;
-          const speed = Math.hypot(this.velocity.x, this.velocity.z);
-          if (speed > 2.4) this.velocity.multiplyScalar(2.4 / speed);
+        const touching = distance < this.data.radius;
+        if (touching && (!this.wasTouching || cameraSpeed > 0.12)) {
+          const impact = THREE.MathUtils.clamp(0.7 + cameraSpeed * 0.55, 0.7, 2.3);
+          this.velocity.x += dx / distance * impact;
+          this.velocity.z += dz / distance * impact;
+          this.angularVelocity.x += dz / distance * impact * 1.8;
+          this.angularVelocity.z -= dx / distance * impact * 1.8;
         }
-        this.velocity.multiplyScalar(Math.exp(-4.4 * dt));
+        this.wasTouching = touching;
         this.el.object3D.position.x += this.velocity.x * dt;
         this.el.object3D.position.z += this.velocity.z * dt;
-        this.el.object3D.rotation.z = THREE.MathUtils.clamp(this.velocity.x * 0.06, -0.16, 0.16);
-        this.el.object3D.rotation.x = THREE.MathUtils.clamp(-this.velocity.z * 0.06, -0.16, 0.16);
+        const speed = Math.hypot(this.velocity.x, this.velocity.z);
+        if (speed > 0.9) this.velocity.multiplyScalar(0.9 / speed);
+        this.velocity.multiplyScalar(Math.exp(-4.5 * dt));
+
+        const rotation = this.el.object3D.rotation;
+        const tilt = Math.hypot(rotation.x, rotation.z);
+        if (tilt < 0.38) {
+          this.angularVelocity.x -= rotation.x * 10 * dt;
+          this.angularVelocity.z -= rotation.z * 10 * dt;
+        } else {
+          this.angularVelocity.x += Math.sin(rotation.x) * 3.2 * dt;
+          this.angularVelocity.z += Math.sin(rotation.z) * 3.2 * dt;
+        }
+        this.angularVelocity.multiplyScalar(Math.exp(-1.7 * dt));
+        const angularSpeed = Math.hypot(this.angularVelocity.x, this.angularVelocity.z);
+        if (angularSpeed > 3.8) this.angularVelocity.multiplyScalar(3.8 / angularSpeed);
+        rotation.x += this.angularVelocity.x * dt;
+        rotation.z += this.angularVelocity.z * dt;
+        const maxTilt = 1.35;
+        const newTilt = Math.hypot(rotation.x, rotation.z);
+        if (newTilt > maxTilt) {
+          rotation.x *= maxTilt / newTilt;
+          rotation.z *= maxTilt / newTilt;
+          this.angularVelocity.multiplyScalar(0.35);
+        }
+        const floorContact = Math.hypot(rotation.x, rotation.z);
+        this.el.object3D.position.y = 0.16 * Math.cos(floorContact) + 0.21 * Math.sin(floorContact);
       },
     });
 
@@ -125,6 +160,7 @@
         this.crystalPosition = new THREE.Vector3();
         this.fpsFrames = 0;
         this.fpsTime = 0;
+        this.lastRestartAt = 0;
 
         this.el.addEventListener('loaded', () => {
           const floor = document.querySelector('#ground');
@@ -140,11 +176,20 @@
         this.el.addEventListener('realityerror', () => {
           this.status.textContent = 'AR не запустился. Открой ссылку в Safari или Chrome и проверь разрешение камеры.';
         });
-        this.resetButton.addEventListener('click', (event) => {
+        const restartFromButton = (event) => {
           event.preventDefault();
           event.stopPropagation();
-          this.spawnField(null);
-        });
+          if (Date.now() - this.lastRestartAt < 400) return;
+          this.lastRestartAt = Date.now();
+          this.restart();
+        };
+        this.resetButton.addEventListener('pointerup', restartFromButton);
+        this.resetButton.addEventListener('click', restartFromButton);
+      },
+
+      restart() {
+        this.spawnField(null);
+        this.status.textContent = 'Уровень начат заново. Подойди к кристаллам ближе, чтобы собрать их.';
       },
 
       spawnField(origin) {
@@ -178,8 +223,8 @@
       createPot(center) {
         const pot = document.createElement('a-entity');
         pot.classList.add('flower-pot');
-        pot.setAttribute('position', `${center.x} ${center.y} ${center.z}`);
-        pot.setAttribute('pot-bump', 'radius: 0.82');
+        pot.setAttribute('position', `${center.x} 0.16 ${center.z}`);
+        pot.setAttribute('pot-bump', 'radius: 0.38');
 
         const addPart = (geometry, material, position, rotation = '0 0 0') => {
           const part = document.createElement('a-entity');
@@ -191,30 +236,30 @@
           return part;
         };
 
-        addPart('primitive: cylinder; radiusTop: 0.32; radiusBottom: 0.23; height: 0.44; segmentsRadial: 8',
-          'color: #7655d5; emissive: #241245; emissiveIntensity: 0.28; metalness: 0.42; roughness: 0.26', '0 0.23 0');
-        addPart('primitive: cylinder; radius: 0.34; height: 0.09; segmentsRadial: 8',
-          'color: #62f5dd; emissive: #116c70; emissiveIntensity: 0.38; metalness: 0.48; roughness: 0.22', '0 0.45 0');
-        addPart('primitive: cylinder; radius: 0.29; height: 0.035; segmentsRadial: 8',
-          'color: #28233d; roughness: 0.95', '0 0.505 0');
+        addPart('primitive: cone; radiusBottom: 0.19; radiusTop: 0.145; height: 0.30; segmentsRadial: 8',
+          'color: #5946a5; emissive: #17112d; emissiveIntensity: 0.08; metalness: 0.28; roughness: 0.42', '0 0 0');
+        addPart('primitive: cylinder; radius: 0.215; height: 0.045; segmentsRadial: 8',
+          'color: #62f5dd; emissive: #116c70; emissiveIntensity: 0.12; metalness: 0.34; roughness: 0.32', '0 0.16 0');
+        addPart('primitive: cylinder; radius: 0.18; height: 0.018; segmentsRadial: 8',
+          'color: #28233d; roughness: 0.95', '0 0.185 0');
 
         const blooms = [
-          {x: -0.12, z: 0.00, height: 0.72, lean: -8, color: '#62f5dd'},
-          {x: 0.08, z: -0.06, height: 0.94, lean: 7, color: '#ff76c8'},
-          {x: 0.16, z: 0.07, height: 0.64, lean: 12, color: '#a98aff'},
+          {x: -0.075, z: 0.00, height: 0.37, lean: -8, color: '#62f5dd'},
+          {x: 0.035, z: -0.04, height: 0.46, lean: 7, color: '#ff76c8'},
+          {x: 0.085, z: 0.045, height: 0.33, lean: 12, color: '#a98aff'},
         ];
         blooms.forEach((bloom) => {
-          addPart(`primitive: cylinder; radius: 0.018; height: ${bloom.height}; segmentsRadial: 6`,
-            'color: #5de0bd; emissive: #145f4b; emissiveIntensity: 0.2; roughness: 0.5',
-            `${bloom.x} ${0.51 + bloom.height / 2} ${bloom.z}`, `0 0 ${bloom.lean}`);
+          addPart(`primitive: cylinder; radius: 0.012; height: ${bloom.height}; segmentsRadial: 6`,
+            'color: #5de0bd; emissive: #145f4b; emissiveIntensity: 0.08; roughness: 0.5',
+            `${bloom.x} ${0.195 + bloom.height / 2} ${bloom.z}`, `0 0 ${bloom.lean}`);
           [-1, 1].forEach((side, leafIndex) => {
-            const leaf = addPart('primitive: octahedron; radius: 0.12',
-              'color: #42d6a5; emissive: #0e573f; emissiveIntensity: 0.22; metalness: 0.08; roughness: 0.35',
-              `${bloom.x + side * 0.105} ${0.51 + bloom.height * (leafIndex ? 0.38 : 0.58)} ${bloom.z + side * 0.025}`,
+            const leaf = addPart('primitive: octahedron; radius: 0.075',
+              'color: #42d6a5; emissive: #0e573f; emissiveIntensity: 0.12; metalness: 0.08; roughness: 0.35',
+              `${bloom.x + side * 0.075} ${0.195 + bloom.height * (leafIndex ? 0.38 : 0.58)} ${bloom.z + side * 0.025}`,
               `0 0 ${side * -32}`);
-            leaf.setAttribute('scale', '1.35 0.48 0.58');
+            leaf.setAttribute('scale', '1.25 0.42 0.52');
           });
-          const headY = 0.51 + bloom.height;
+          const headY = 0.195 + bloom.height;
           const head = document.createElement('a-entity');
           head.setAttribute('position', `${bloom.x} ${headY} ${bloom.z}`);
           pot.appendChild(head);
@@ -371,12 +416,19 @@
         lastHandInference = now;
         const video = document.querySelector('#hands-video');
         if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
-          const result = handTask.detectForVideo(video, now);
-          const hands = result.landmarks || [];
-          positionHandBoxes(hands, video.videoWidth, video.videoHeight);
-          document.querySelector('#hand-status').textContent = hands.length
-            ? `Рук в кадре: ${hands.length} · красная рамка показывает найденную руку`
-            : 'Покажи руки камере и держи их в кадре';
+          try {
+            const result = handTask.detectForVideo(video, now);
+            const hands = result.landmarks || [];
+            positionHandBoxes(hands, video.videoWidth, video.videoHeight);
+            document.querySelector('#hand-status').textContent = hands.length
+              ? `Рук в кадре: ${hands.length} · красная рамка показывает найденную руку`
+              : 'Модель готова — покажи руку в кадре';
+          } catch (error) {
+            document.querySelector('#hand-boxes').replaceChildren();
+            document.querySelector('#hand-status').textContent = `Ошибка распознавания: ${String(error && error.message || error).slice(0, 90)}`;
+            handFrame = 0;
+            return;
+          }
         }
       }
       handFrame = window.requestAnimationFrame(handDetectionFrame);
@@ -385,7 +437,9 @@
     const releaseHandResources = () => {
       if (handFrame) window.cancelAnimationFrame(handFrame);
       handFrame = 0;
-      if (handTask) handTask.close();
+      if (handTask) {
+        try { handTask.close(); } catch (error) { /* Continue releasing the camera if the model already stopped. */ }
+      }
       handTask = null;
       if (handStream) handStream.getTracks().forEach((track) => track.stop());
       handStream = null;
@@ -405,7 +459,7 @@
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
         handStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: {facingMode: {ideal: 'environment'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 30, max: 30}},
+          video: {facingMode: {ideal: 'user'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 30}},
         });
         if (currentLevel !== 2) {
           handStream.getTracks().forEach((track) => track.stop());
@@ -415,26 +469,29 @@
         const video = document.querySelector('#hands-video');
         video.srcObject = handStream;
         await video.play();
-        document.querySelector('#hand-status').textContent = 'Загружаю распознавание рук…';
+        document.querySelector('#hand-status').textContent = 'Камера включена. Загружаю модель распознавания…';
         const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs');
         const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
         handTask = await vision.HandLandmarker.createFromOptions(files, {
-          baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task'},
+          baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'CPU'},
           runningMode: 'VIDEO',
           numHands: 2,
-          minHandDetectionConfidence: 0.45,
-          minHandPresenceConfidence: 0.45,
-          minTrackingConfidence: 0.45,
+          minHandDetectionConfidence: 0.35,
+          minHandPresenceConfidence: 0.35,
+          minTrackingConfidence: 0.35,
         });
         if (currentLevel !== 2) {
           releaseHandResources();
           return;
         }
         lastHandInference = 0;
-        document.querySelector('#hand-status').textContent = 'Покажи руки камере';
+        document.querySelector('#hand-status').textContent = 'Модель готова — покажи руку в кадре';
         handFrame = window.requestAnimationFrame(handDetectionFrame);
       } catch (error) {
-        if (currentLevel === 2) document.querySelector('#hand-status').textContent = 'Не удалось включить распознавание. Проверь разрешение камеры и интернет.';
+        if (currentLevel === 2) {
+          const detail = String(error && error.message || error).slice(0, 100);
+          document.querySelector('#hand-status').textContent = `Не загрузилось распознавание (${detail}). Проверь интернет и нажми назад, затем попробуй снова.`;
+        }
       }
     };
 
@@ -471,8 +528,9 @@
       hideSettings();
       if (currentLevel === 1) {
         const scene = document.querySelector('a-scene');
-        const game = scene && scene.components['crystal-hunt'];
-        if (game) game.spawnField(null);
+        const game = scene && scene.components && scene.components['crystal-hunt'];
+        if (game && typeof game.restart === 'function') game.restart();
+        else document.querySelector('#status').textContent = 'AR-сцена ещё загружается. Подожди секунду и нажми снова.';
       } else if (currentLevel === 2) {
         releaseHandResources();
         startHandLevel();
@@ -506,7 +564,7 @@
     <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong><small id="fps" class="fps">… FPS</small></div>
   </div>
   <button id="settings-button" class="settings-button" aria-label="Настройки" type="button">⚙</button>
-  <div id="game-bottom" class="bottom"><div id="status">Плавно осмотри комнату и коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
+  <div id="game-bottom" class="bottom"><div id="status">Плавно осмотри комнату и коснись пола, чтобы расставить кристаллы.</div><button id="reset" type="button">Играть ещё раз</button></div>
   <a class="license" href="https://github.com/8thwall/engine/blob/main/LICENSE" target="_blank" rel="noopener">XR Engine: Niantic Spatial © 2026 · license</a>
 
   <div id="launch-screen" class="launch-screen">
