@@ -18,6 +18,10 @@
     .score small { display: block; color: #aab6d9; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
     .score strong { display: block; margin-top: 1px; font-size: 24px; }
     .card { position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); width: min(440px, calc(100% - 32px)); transform: translateX(-50%); padding: 18px; border: 1px solid #ffffff24; border-radius: 22px; background: #0d1425e8; box-shadow: 0 20px 70px #0008; backdrop-filter: blur(18px); }
+    .placement { display: none; position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(440px, calc(100% - 32px)); padding: 16px; border: 1px solid #ffffff30; border-radius: 20px; background: #0d1425e8; box-shadow: 0 20px 70px #0008; backdrop-filter: blur(18px); }
+    .placement h2 { margin: 0 0 6px; font-size: 17px; }
+    .placement p { margin: 0 0 12px; color: #bac5e1; font-size: 13px; line-height: 1.4; }
+    .live.placing .placement { display: block; }
     .card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.03em; }
     .card p { margin: 0 0 14px; color: #bac5e1; font-size: 14px; line-height: 1.45; }
     button { width: 100%; min-height: 50px; border: 0; border-radius: 15px; background: linear-gradient(110deg, #8b5cf6, #42d6c5); color: #07111e; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
@@ -42,6 +46,11 @@
   </div>
   <div class="crosshair"></div>
   <div class="toast" id="toast">Кристалл найден!</div>
+  <section class="placement" id="placement" aria-live="polite">
+    <h2>Найди место в комнате</h2>
+    <p>Медленно наведи камеру на пол и плавно подвигай телефон, чтобы игра просканировала комнату. Кристаллы должны быть видны поверх изображения с камеры.</p>
+    <button id="place">Разместить кристаллы здесь</button>
+  </section>
   <section class="card" id="intro">
     <h1>Найди кристаллы вокруг себя</h1>
     <p id="status">Игра использует камеру и отслеживает движение телефона в пространстве. Разреши доступ к камере, наведи её на пол и нажми «Начать».</p>
@@ -103,6 +112,8 @@
       const canvas = document.querySelector("#ar-canvas");
       const scoreLabel = document.querySelector("#score");
       const toast = document.querySelector("#toast");
+      const placement = document.querySelector("#placement");
+      const placeButton = document.querySelector("#place");
       const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(innerWidth, innerHeight, false);
@@ -121,6 +132,12 @@
       const tracker = new ZapparThree.InstantWorldTracker();
       const anchor = new ZapparThree.InstantWorldAnchorGroup(camera, tracker);
       scene.add(anchor);
+      let hasPlaced = false;
+      placeButton.addEventListener("click", () => {
+        hasPlaced = true;
+        document.body.classList.remove("placing");
+        placement.setAttribute("aria-hidden", "true");
+      }, { once: true });
 
       const crystals = [];
       const raycaster = new THREE.Raycaster();
@@ -153,6 +170,7 @@
       [[-0.42,-0.24],[-0.12,-0.65],[0.32,-0.47],[0.5,-0.08],[0.12,0.18]].forEach(([x,z], i) => makeCrystal(i, x, z));
 
       function collectAt(clientX, clientY) {
+        if (!hasPlaced) return;
         pointer.set((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
         raycaster.setFromCamera(pointer, camera);
         const targets = [];
@@ -184,13 +202,15 @@
         renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       });
 
-      camera.start();
-      tracker.setAnchorPoseFromCameraOffset(0, -0.35, -1.4);
-      document.body.classList.add("live");
+      await camera.start();
+      document.body.classList.add("live", "placing");
       intro.setAttribute("aria-hidden", "true");
 
       renderer.setAnimationLoop(() => {
         camera.updateFrame(renderer);
+        // Zappar's instant-world tracker needs the placement pose refreshed
+        // while the user scans, then it tracks that chosen point in the room.
+        if (!hasPlaced) tracker.setAnchorPoseFromCameraOffset(0, -0.35, -1.4);
         const now = performance.now() * 0.001;
         crystals.forEach((crystal, i) => {
           if (crystal.userData.collected) return;
