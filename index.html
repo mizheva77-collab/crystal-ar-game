@@ -2,54 +2,153 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#080c17">
-  <title>Кристаллы комнаты — AR-игра</title>
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.1.0/model-viewer.min.js"></script>
+  <title>Кристаллы комнаты — AR-охота</title>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/landing-page@1/dist/landing-page.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" crossorigin="anonymous" async data-preload-chunks="slam"></script>
   <style>
     :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: #080c17; color: #f4f7ff; }
-    body { min-height: 100svh; padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); display: grid; place-items: center; }
-    main { width: min(100%, 650px); }
-    .eyebrow { color: #aab7d8; font-size: 11px; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; }
-    h1 { margin: 5px 0 7px; font-size: clamp(25px, 7vw, 36px); line-height: 1.08; }
-    .intro { margin: 0 0 14px; max-width: 55ch; color: #c4cde2; line-height: 1.45; font-size: 14px; }
-    .viewer-wrap { overflow: hidden; position: relative; height: min(58svh, 480px); min-height: 300px; border: 1px solid #ffffff24; border-radius: 25px; background: radial-gradient(ellipse at 50% 50%, #272948, #0e1425 68%); box-shadow: 0 18px 60px #0008; }
-    model-viewer { width: 100%; height: 100%; --poster-color: transparent; --progress-bar-color: #62e6d2; --progress-mask: #10172b; }
-    .ar-button { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); min-height: 52px; min-width: min(310px, calc(100% - 36px)); padding: 0 20px; border: 0; border-radius: 16px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-size: 16px; font-weight: 850; box-shadow: 0 8px 30px #0008; cursor: pointer; }
-    .progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #172036; }
-    .progress > div { height: 100%; width: 0; background: #62e6d2; transition: width .2s; }
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 13px; }
-    .step { padding: 12px 10px; border: 1px solid #ffffff1a; border-radius: 15px; background: #10172b; color: #c5cee4; font-size: 12px; line-height: 1.35; }
-    .step b { display: block; margin-bottom: 4px; color: #fff; font-size: 13px; }
-    .note { margin: 12px 2px 0; color: #909fbe; font-size: 11px; line-height: 1.45; }
-    .note strong { color: #c9d3ed; }
-    @media (max-width: 390px) { .steps { gap: 6px; } .step { padding: 10px 8px; font-size: 11px; } }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #080c17; color: #f4f7ff; }
+    body { touch-action: manipulation; }
+    a-scene { position: fixed; inset: 0; width: 100%; height: 100%; }
+    .hud { position: fixed; z-index: 4; top: max(14px, env(safe-area-inset-top)); left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; text-shadow: 0 2px 12px #000; }
+    .brand { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #c2cbea; }
+    .title { margin-top: 4px; font-size: 19px; font-weight: 800; }
+    .score { padding: 8px 13px; border: 1px solid #ffffff3a; border-radius: 15px; background: #10172bdc; text-align: center; backdrop-filter: blur(10px); }
+    .score small { display: block; color: #c2cbea; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+    .score strong { font-size: 22px; }
+    .bottom { position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
+    #status { display: inline-block; padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 16px; background: #0b1122e8; color: #edf3ff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 35px #0009; backdrop-filter: blur(10px); }
+    #reset { display: none; margin: 9px auto 0; min-height: 42px; padding: 0 16px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; }
+    .license { position: fixed; z-index: 4; bottom: max(5px, env(safe-area-inset-bottom)); right: 8px; color: #ffffff80; font-size: 8px; text-decoration: none; pointer-events: auto; }
+    .arjs-loader, .a-enter-vr, .a-enter-ar { display: none !important; }
+    .a-canvas { z-index: 0 !important; }
   </style>
+  <script>
+    const crystalColors = ['#62f5dd', '#a98aff', '#ff76c8', '#ffd36a', '#76a9ff'];
+
+    AFRAME.registerComponent('crystal-hunt', {
+      init() {
+        this.crystals = [];
+        this.collected = 0;
+        this.started = false;
+        this.status = document.querySelector('#status');
+        this.score = document.querySelector('#score');
+        this.resetButton = document.querySelector('#reset');
+        this.cameraPosition = new THREE.Vector3();
+        this.crystalPosition = new THREE.Vector3();
+
+        this.el.addEventListener('loaded', () => {
+          const floor = document.querySelector('#ground');
+          floor.addEventListener('click', (event) => {
+            if (!event.detail || !event.detail.intersection) return;
+            if (!this.started || this.collected === 5) this.spawnField(event.detail.intersection.point);
+          });
+        }, {once: true});
+
+        this.el.addEventListener('realityready', () => {
+          this.status.textContent = 'Камера и трекинг комнаты работают. Нажми на пол, чтобы расставить кристаллы.';
+        });
+        this.el.addEventListener('realityerror', () => {
+          this.status.textContent = 'AR не запустился. Открой ссылку в Safari или Chrome и проверь разрешение камеры.';
+        });
+        this.resetButton.addEventListener('click', () => this.spawnField(null));
+      },
+
+      spawnField(origin) {
+        this.crystals.forEach((crystal) => crystal.remove());
+        this.crystals = [];
+        this.collected = 0;
+        this.started = true;
+        this.score.textContent = '0 / 5';
+        this.resetButton.style.display = 'none';
+        const center = origin || new THREE.Vector3(0, 0, -1.7);
+        const offsets = [
+          [-0.75, -0.35], [0.18, -0.95], [0.82, -0.25],
+          [0.57, 0.72], [-0.55, 0.78],
+        ];
+        offsets.forEach(([dx, dz], index) => {
+          const crystal = document.createElement('a-entity');
+          crystal.classList.add('crystal', 'clickable');
+          crystal.dataset.index = String(index);
+          crystal.setAttribute('position', `${center.x + dx} ${center.y + 0.34} ${center.z + dz}`);
+          crystal.setAttribute('geometry', 'primitive: octahedron; radius: 0.24');
+          crystal.setAttribute('material', `color: ${crystalColors[index]}; emissive: ${crystalColors[index]}; emissiveIntensity: 0.75; metalness: 0.18; roughness: 0.2`);
+          crystal.setAttribute('animation', `property: rotation; to: 0 360 0; loop: true; dur: ${2600 + index * 270}`);
+          crystal.setAttribute('animation__float', `property: position; dir: alternate; dur: ${900 + index * 100}; easing: easeInOutSine; loop: true; to: ${center.x + dx} ${center.y + 0.48} ${center.z + dz}`);
+          crystal.addEventListener('click', () => this.collect(crystal));
+          this.el.appendChild(crystal);
+          this.crystals.push(crystal);
+        });
+        this.status.textContent = 'Кристаллы появились! Подойди к ним или нажми прямо на кристалл.';
+      },
+
+      collect(crystal) {
+        if (!crystal.isConnected || crystal.dataset.collected === 'yes') return;
+        crystal.dataset.collected = 'yes';
+        crystal.classList.remove('clickable');
+        crystal.setAttribute('animation__collect', 'property: scale; to: 0.001 0.001 0.001; dur: 220; easing: easeInQuad');
+        window.setTimeout(() => crystal.remove(), 240);
+        this.collected += 1;
+        this.score.textContent = `${this.collected} / 5`;
+        if (this.collected === 5) {
+          this.status.textContent = 'Все кристаллы собраны! Нажми на пол, чтобы начать заново.';
+          this.resetButton.style.display = 'block';
+        } else {
+          this.status.textContent = `Кристалл найден! Осталось ${5 - this.collected}. Ищи рядом.`;
+        }
+      },
+
+      tick() {
+        if (!this.started || this.collected >= 5) return;
+        const camera = document.querySelector('#camera');
+        if (!camera || !camera.object3D) return;
+        camera.object3D.getWorldPosition(this.cameraPosition);
+        for (const crystal of this.crystals) {
+          if (!crystal.isConnected || crystal.dataset.collected === 'yes') continue;
+          crystal.object3D.getWorldPosition(this.crystalPosition);
+          const dx = this.cameraPosition.x - this.crystalPosition.x;
+          const dz = this.cameraPosition.z - this.crystalPosition.z;
+          if (Math.hypot(dx, dz) < 0.68) this.collect(crystal);
+        }
+      },
+    });
+
+    const mountARScene = () => {
+      if (document.querySelector('a-scene')) return;
+      const template = document.querySelector('#ar-scene-template');
+      if (template) document.body.appendChild(template.content.cloneNode(true));
+    };
+    window.addEventListener('xrloaded', mountARScene, {once: true});
+    window.addEventListener('XRloaded', mountARScene, {once: true});
+    if (window.XR8) mountARScene();
+    window.setTimeout(() => {
+      if (!document.querySelector('a-scene')) {
+        document.querySelector('#status').textContent = 'Движок AR долго не загружается. Обнови страницу и попробуй ещё раз.';
+      }
+    }, 20000);
+  </script>
 </head>
 <body>
-  <main>
-    <div class="eyebrow">AR · ОХОТА ЗА СОКРОВИЩАМИ</div>
-    <h1>Кристаллы комнаты</h1>
-    <p class="intro">Расставь поле кристаллов на полу и исследуй его в реальном пространстве. Камеру и глубину комнаты отслеживает сам телефон — никаких маркеров и платных AR-сервисов.</p>
-    <div class="viewer-wrap">
-      <model-viewer id="crystals" src="crystal-room.glb" alt="Пять светящихся кристаллов, расставленных по комнате" ar ar-modes="webxr scene-viewer quick-look" ar-placement="floor" ar-scale="fixed" camera-controls touch-action="pan-y" shadow-intensity="1.1" exposure="1.15" environment-image="neutral" interaction-prompt="auto" auto-rotate rotation-per-second="18deg" loading="eager">
-        <button class="ar-button" slot="ar-button">✦ Запустить AR в комнате</button>
-        <div class="progress"><div id="bar"></div></div>
-      </model-viewer>
-    </div>
-    <div class="steps">
-      <div class="step"><b>1 · Размести</b>Наведи камеру на пол и нажми на него.</div>
-      <div class="step"><b>2 · Исследуй</b>Обойди кристаллы — они стоят в комнате.</div>
-      <div class="step"><b>3 · Вернись</b>Нажми «Готово», чтобы выйти из AR.</div>
-    </div>
-    <p class="note"><strong>iPhone:</strong> открой страницу в Safari и нажми кнопку AR — откроется системный просмотрщик Apple. <strong>Android:</strong> нужен ARCore и Google Play Services for AR. Если кнопки AR нет, телефон не поддерживает системный режим.</p>
-  </main>
-  <script>
-    const viewer = document.querySelector('#crystals');
-    const bar = document.querySelector('#bar');
-    viewer.addEventListener('progress', (event) => { bar.style.width = `${Math.round(event.detail.totalProgress * 100)}%`; });
-  </script>
+  <div class="hud">
+    <div><div class="brand">AR · ОХОТА ЗА СОКРОВИЩАМИ</div><div class="title">Кристаллы комнаты</div></div>
+    <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong></div>
+  </div>
+  <div class="bottom"><div id="status">Нажми «Начать AR», затем коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
+  <a class="license" href="https://github.com/8thwall/engine/blob/main/LICENSE" target="_blank" rel="noopener">XR Engine: Niantic Spatial © 2026 · license</a>
+
+  <template id="ar-scene-template">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true; colorManagement: true" landing-page xrextras-loading xrextras-runtime-error xrweb="allowedDevices: any">
+      <a-assets></a-assets>
+      <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
+      <a-entity light="type: directional; intensity: 0.9; castShadow: true" position="1 4 2" shadow></a-entity>
+      <a-light type="ambient" intensity="0.65"></a-light>
+      <a-box id="ground" class="cantap" scale="1000 2 1000" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28" shadow></a-box>
+    </a-scene>
+  </template>
 </body>
 </html>
