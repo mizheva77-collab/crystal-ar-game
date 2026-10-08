@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#080c17" />
+  <title>Кристаллы комнаты — AR-игра</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #080c17; color: #f4f7ff; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    .shade { position: fixed; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(5,8,18,.65), transparent 26%, transparent 63%, rgba(5,8,18,.72)); }
+    .top { position: fixed; top: max(16px, env(safe-area-inset-top)); left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+    .brand { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #b6c2e6; }
+    .title { margin-top: 5px; font-size: 21px; font-weight: 750; letter-spacing: -.03em; }
+    .score { min-width: 92px; padding: 10px 14px; border: 1px solid #ffffff25; border-radius: 16px; background: #10172bcc; text-align: center; backdrop-filter: blur(12px); }
+    .score small { display: block; color: #aab6d9; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
+    .score strong { display: block; margin-top: 1px; font-size: 24px; }
+    .card { position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); width: min(440px, calc(100% - 32px)); transform: translateX(-50%); padding: 18px; border: 1px solid #ffffff24; border-radius: 22px; background: #0d1425e8; box-shadow: 0 20px 70px #0008; backdrop-filter: blur(18px); }
+    .card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.03em; }
+    .card p { margin: 0 0 14px; color: #bac5e1; font-size: 14px; line-height: 1.45; }
+    button { width: 100%; min-height: 50px; border: 0; border-radius: 15px; background: linear-gradient(110deg, #8b5cf6, #42d6c5); color: #07111e; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .hint { margin-top: 10px; color: #8897bb; text-align: center; font-size: 11px; line-height: 1.4; }
+    .toast { position: fixed; left: 50%; top: 24%; transform: translate(-50%, -8px); opacity: 0; padding: 10px 14px; border: 1px solid #ffffff30; border-radius: 999px; background: #121a2ddd; color: white; font-size: 14px; pointer-events: none; transition: .22s ease; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); border: 1px solid #ffffffa8; border-radius: 50%; box-shadow: 0 0 18px #80ffe6aa; pointer-events: none; opacity: 0; }
+    .crosshair::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: #9bffe9; }
+    .live .crosshair { opacity: .8; }
+    .live .shade { background: linear-gradient(180deg, rgba(5,8,18,.38), transparent 20%, transparent 72%, rgba(5,8,18,.38)); }
+    .live .card { display: none; }
+    .small { font-size: 12px !important; }
+  </style>
+</head>
+<body>
+  <canvas id="ar-canvas"></canvas>
+  <div class="shade"></div>
+  <div class="top">
+    <div><div class="brand">AR · ОХОТА ЗА СОКРОВИЩАМИ</div><div class="title">Кристаллы комнаты</div></div>
+    <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong></div>
+  </div>
+  <div class="crosshair"></div>
+  <div class="toast" id="toast">Кристалл найден!</div>
+  <section class="card" id="intro">
+    <h1>Найди кристаллы вокруг себя</h1>
+    <p id="status">Игра использует камеру и отслеживает движение телефона в пространстве. Разреши доступ к камере, наведи её на пол и нажми «Начать».</p>
+    <button id="start">Начать AR-игру</button>
+    <div class="hint">Нужен современный мобильный браузер и HTTPS. На iPhone открой страницу в Safari.</div>
+  </section>
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
+    import * as ZapparThree from "https://cdn.jsdelivr.net/npm/@zappar/zappar-threejs@2.1.0/dist/zappar-threejs.js";
+
+    const canvas = document.querySelector("#ar-canvas");
+    const startButton = document.querySelector("#start");
+    const status = document.querySelector("#status");
+    const scoreLabel = document.querySelector("#score");
+    const intro = document.querySelector("#intro");
+    const toast = document.querySelector("#toast");
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+    const scene = new THREE.Scene();
+    scene.background = null;
+    scene.add(new THREE.HemisphereLight(0xddeaff, 0x302650, 2.1));
+    const keyLight = new THREE.PointLight(0x69ffe0, 22, 7);
+    keyLight.position.set(0, 1.8, 0.5);
+    scene.add(keyLight);
+
+    const camera = new ZapparThree.Camera();
+    const pipeline = new ZapparThree.Pipeline();
+    ZapparThree.glContextSet(pipeline, renderer.getContext());
+    const tracker = new ZapparThree.InstantWorldTracker();
+    const anchor = new ZapparThree.InstantWorldAnchorGroup(camera, pipeline, tracker);
+    scene.add(anchor);
+
+    const crystals = [];
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const crystalGeometry = new THREE.OctahedronGeometry(0.115, 0);
+    const baseColors = [0x66f5df, 0x8b76ff, 0xff78c8, 0xffd36a, 0x76a9ff];
+    let running = false;
+    let collected = 0;
+    let lastToast = 0;
+
+    function makeCrystal(index, x, z) {
+      const group = new THREE.Group();
+      group.position.set(x, 0.16 + (index % 2) * 0.07, z);
+      group.userData.collected = false;
+      const material = new THREE.MeshStandardMaterial({ color: baseColors[index], emissive: baseColors[index], emissiveIntensity: 0.85, metalness: 0.12, roughness: 0.2 });
+      const gem = new THREE.Mesh(crystalGeometry, material);
+      gem.scale.set(0.78, 1.35, 0.78);
+      gem.userData.crystal = group;
+      group.add(gem);
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.008, 8, 48), new THREE.MeshBasicMaterial({ color: baseColors[index], transparent: true, opacity: 0.7 }));
+      halo.rotation.x = Math.PI / 2;
+      halo.position.y = -0.08;
+      group.add(halo);
+      const glow = new THREE.PointLight(baseColors[index], 1.1, 1.2);
+      glow.position.y = 0.02;
+      group.add(glow);
+      anchor.add(group);
+      crystals.push(group);
+    }
+
+    function spawnCrystals() {
+      const positions = [[-0.42,-0.24],[-0.12,-0.65],[0.32,-0.47],[0.5,-0.08],[0.12,0.18]];
+      positions.forEach(([x,z], i) => makeCrystal(i, x, z));
+    }
+
+    async function begin() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        status.textContent = "Этот браузер не поддерживает доступ к камере. Открой игру в Safari на iPhone или Chrome на Android по HTTPS.";
+        return;
+      }
+      if (!window.isSecureContext) {
+        status.textContent = "Камера и AR требуют защищённого адреса HTTPS. Опубликуй страницу на HTTPS и открой её снова.";
+        return;
+      }
+      startButton.disabled = true;
+      status.textContent = "Запрашиваю доступ к камере и запускаю пространственный трекинг…";
+      try {
+        const granted = await ZapparThree.permissionRequest();
+        if (!granted) throw new Error("Разреши доступ к камере в настройках браузера и попробуй ещё раз.");
+        camera.start();
+        tracker.setAnchorPoseFromCameraOffset(0, -0.35, -1.4);
+        spawnCrystals();
+        running = true;
+        document.body.classList.add("live");
+        intro.setAttribute("aria-hidden", "true");
+        status.textContent = "";
+      } catch (error) {
+        status.textContent = error?.message || "Не удалось запустить AR. Проверь разрешение камеры и попробуй снова.";
+        startButton.disabled = false;
+      }
+    }
+
+    function collectAt(clientX, clientY) {
+      if (!running) return;
+      pointer.set((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
+      raycaster.setFromCamera(pointer, camera);
+      const targets = [];
+      for (const crystal of crystals) if (!crystal.userData.collected) targets.push(...crystal.children.filter(child => child.isMesh));
+      const hits = raycaster.intersectObjects(targets, false);
+      if (!hits.length) return;
+      const crystal = hits[0].object.userData.crystal;
+      if (!crystal || crystal.userData.collected) return;
+      crystal.userData.collected = true;
+      const from = crystal.scale.clone();
+      const started = performance.now();
+      const shrink = () => {
+        const t = Math.min(1, (performance.now() - started) / 240);
+        crystal.scale.copy(from).multiplyScalar(1 - t);
+        if (t < 1) requestAnimationFrame(shrink); else anchor.remove(crystal);
+      };
+      shrink();
+      collected++;
+      scoreLabel.textContent = `${collected} / 5`;
+      toast.textContent = collected === 5 ? "Все кристаллы собраны! ✨" : "Кристалл найден!";
+      toast.classList.add("show");
+      clearTimeout(lastToast);
+      lastToast = setTimeout(() => toast.classList.remove("show"), 1300);
+    }
+
+    canvas.addEventListener("pointerup", event => collectAt(event.clientX, event.clientY));
+    startButton.addEventListener("click", begin);
+    addEventListener("resize", () => {
+      renderer.setSize(innerWidth, innerHeight, false);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    });
+
+    renderer.setAnimationLoop(() => {
+      if (running) {
+        pipeline.frameUpdate();
+        pipeline.processGL();
+        const now = performance.now() * 0.001;
+        crystals.forEach((crystal, i) => {
+          if (crystal.userData.collected) return;
+          crystal.rotation.y = now * 0.8 + i;
+          crystal.position.y += Math.sin(now * 2.2 + i * 1.7) * 0.0007;
+          crystal.children[1].rotation.z = now * 0.55 + i;
+        });
+      }
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>
