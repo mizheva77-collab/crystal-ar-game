@@ -43,6 +43,7 @@
     .level-card small { display: block; margin-top: 3px; color: #afbdd7; font-size: 12px; line-height: 1.35; }
     .level-card.secondary { background: linear-gradient(145deg,#28152b,#151a31); border-color: #ff6b8055; }
     .level-card.secondary .level-number { color: #ff8796; }
+    .level-card.tertiary { background: linear-gradient(145deg,#132d37,#151a31); border-color: #62f5dd55; }
     #launch-status { min-height: 18px; margin-top: 12px; color: #aebbd7; font-size: 12px; }
     .settings-button { position: fixed; z-index: 7; display: none; place-items: center; top: max(12px, env(safe-area-inset-top)); left: 12px; width: 42px; height: 42px; border: 1px solid #ffffff38; border-radius: 14px; background: #10172be8; color: #f4f7ff; font-size: 21px; pointer-events: auto; touch-action: manipulation; }
     .settings-button.active { display: grid; }
@@ -57,14 +58,30 @@
     .settings-panel button.primary { border: 0; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; }
     #hand-screen { position: fixed; z-index: 7; inset: 0; overflow: hidden; background: #050816; }
     #hand-screen[hidden] { display: none; }
-    #hands-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    .hand-shade { position: absolute; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
-    #hand-boxes { position: absolute; inset: 0; overflow: hidden; pointer-events: none; transform: scaleX(-1); }
-    .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 12px; background: #ff25451f; box-shadow: 0 0 22px #ff254558, inset 0 0 20px #ff254522; }
-    .hand-bar { position: absolute; z-index: 2; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; }
+    #hands-video { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .hand-shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
+    #hand-boxes { position: absolute; z-index: 3; inset: 0; overflow: hidden; pointer-events: none; }
+    .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 35%; background: #ff25452b; box-shadow: 0 0 14px #ff254540, inset 0 0 10px #ff25451f; }
+    #sparring-scene { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; }
+    #sparring-scene .a-canvas { z-index: 0 !important; pointer-events: none; }
+    .hand-bar { position: absolute; z-index: 5; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; }
     #hand-back { width: 42px; height: 42px; border: 1px solid #ffffff3b; border-radius: 14px; background: #10172be8; color: #fff; font-size: 20px; }
     .hand-title { color: white; font-size: 17px; font-weight: 800; text-shadow: 0 2px 10px #000; }
-    #hand-status { position: absolute; z-index: 2; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 15px; background: #0b1122e8; color: #fff; text-align: center; font-size: 13px; line-height: 1.4; }
+    #hand-status { position: absolute; z-index: 5; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 15px; background: #0b1122e8; color: #fff; text-align: center; font-size: 13px; line-height: 1.4; }
+    #dummy-hud { position: absolute; z-index: 4; top: max(72px, 12vh); left: 50%; transform: translateX(-50%); width: min(230px, calc(100% - 110px)); padding: 9px 13px; border: 1px solid #ffffff42; border-radius: 15px; background: #10172bdc; text-align: center; pointer-events: none; backdrop-filter: blur(8px); }
+    #dummy-hud[hidden], #sparring-complete[hidden] { display: none; }
+    #dummy-name { font-size: 14px; font-weight: 850; letter-spacing: .02em; }
+    #dummy-hp-track { height: 8px; margin-top: 6px; overflow: hidden; border-radius: 99px; background: #ffffff32; }
+    #dummy-hp-fill { display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#ff7183,#ffc36a); transition: width .16s ease; }
+    #dummy-hp-text { display: block; margin-top: 4px; color: #dce5f7; font-size: 10px; font-weight: 700; }
+    #damage-pop { position: absolute; left: 50%; bottom: calc(100% + 2px); color: #fff2a6; font-size: 21px; font-weight: 900; text-shadow: 0 2px 14px #ff526e; opacity: 0; transform: translate(-50%, 8px) scale(.8); }
+    #damage-pop.show { animation: damage-pop .75s ease-out forwards; }
+    @keyframes damage-pop { 12% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 100% { opacity: 0; transform: translate(-50%, -35px) scale(1); } }
+    #sparring-complete { position: absolute; z-index: 6; inset: 0; display: grid; place-items: center; padding: 24px; background: #05081665; backdrop-filter: blur(5px); }
+    .sparring-result-card { width: min(340px,100%); padding: 25px; border: 1px solid #62f5dd66; border-radius: 24px; background: #0c1427f2; text-align: center; box-shadow: 0 20px 80px #0008; }
+    .sparring-result-card h2 { margin: 0 0 8px; font-size: 25px; }
+    .sparring-result-card p { margin: 0 0 16px; color: #c2cbea; }
+    .sparring-result-card button { width: 100%; min-height: 48px; margin-top: 8px; border: 0; border-radius: 14px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; touch-action: manipulation; }
     .license { position: fixed; z-index: 4; bottom: max(5px, env(safe-area-inset-bottom)); right: 8px; color: #ffffff80; font-size: 8px; text-decoration: none; pointer-events: auto; }
     .arjs-loader, .a-enter-vr, .a-enter-ar { display: none !important; }
     .a-canvas { z-index: 0 !important; }
@@ -330,6 +347,56 @@
       },
     });
 
+    AFRAME.registerComponent('dummy-spring', {
+      init() {
+        this.body = this.el.querySelector('#dummy-body');
+        this.angleX = 0;
+        this.angleZ = 0;
+        this.velocityX = 0;
+        this.velocityZ = 0;
+        this.targetX = 0;
+        this.targetZ = 0;
+      },
+      setContact(nx, ny, strength) {
+        this.targetX = THREE.MathUtils.clamp(ny * strength * 0.28 - strength * 0.2, -0.4, 0.28);
+        this.targetZ = THREE.MathUtils.clamp(nx * strength * 0.4, -0.4, 0.4);
+      },
+      clearContact() {
+        this.targetX = 0;
+        this.targetZ = 0;
+      },
+      hit(directionX, directionY, power) {
+        this.velocityX += THREE.MathUtils.clamp(directionY * power * 3.4, -3.2, 3.2);
+        this.velocityZ -= THREE.MathUtils.clamp(directionX * power * 3.8, -3.6, 3.6);
+        if (Math.hypot(directionX, directionY) < 0.08) this.velocityX -= power * 2.8;
+      },
+      reset() {
+        this.angleX = 0;
+        this.angleZ = 0;
+        this.velocityX = 0;
+        this.velocityZ = 0;
+        this.clearContact();
+      },
+      tick(time, timeDelta) {
+        if (!this.body || !this.body.object3D) return;
+        const dt = Math.min((timeDelta || 16) / 1000, 0.04);
+        const stiffness = 34;
+        const damping = 5.2;
+        this.velocityX += ((this.targetX - this.angleX) * stiffness - this.velocityX * damping) * dt;
+        this.velocityZ += ((this.targetZ - this.angleZ) * stiffness - this.velocityZ * damping) * dt;
+        this.angleX = THREE.MathUtils.clamp(this.angleX + this.velocityX * dt, -0.62, 0.62);
+        this.angleZ = THREE.MathUtils.clamp(this.angleZ + this.velocityZ * dt, -0.68, 0.68);
+        const body = this.body.object3D;
+        body.rotation.x = this.angleX;
+        body.rotation.z = this.angleZ;
+        body.position.x = -Math.sin(this.angleZ) * 0.25;
+        body.position.z = Math.sin(this.angleX) * 0.18;
+        const stretch = Math.min(0.08, Math.hypot(this.angleX, this.angleZ) * 0.08);
+        body.scale.y = 1 + stretch;
+        body.scale.x = 1 - stretch * 0.34;
+      },
+    });
+
     let arEngineReady = false;
     let currentLevel = 0;
     let coachingAdded = false;
@@ -337,6 +404,10 @@
     let handTask = null;
     let handFrame = 0;
     let lastHandInference = 0;
+    let lastVideoTime = -1;
+    let handTracks = new Map();
+    let dummyHp = 100;
+    let lastPunchAt = 0;
 
     const prepareStartButton = () => {
       arEngineReady = true;
@@ -371,6 +442,18 @@
       return true;
     };
 
+    const mountSparringScene = () => {
+      if (document.querySelector('#sparring-scene')) return;
+      const template = document.querySelector('#sparring-scene-template');
+      if (!template) return;
+      document.querySelector('#hand-screen').appendChild(template.content.cloneNode(true));
+      const scene = document.querySelector('#sparring-scene');
+      if (scene) {
+        scene.addEventListener('loaded', () => scene.resize(), {once: true});
+        requestAnimationFrame(() => { if (scene.resize) scene.resize(); });
+      }
+    };
+
     const startLevelOne = () => {
       if (!arEngineReady) return;
       currentLevel = 1;
@@ -384,51 +467,204 @@
       }
     };
 
-    const positionHandBoxes = (hands, imageWidth, imageHeight) => {
-      const overlay = document.querySelector('#hand-boxes');
-      overlay.replaceChildren();
+    const getVideoMetrics = (imageWidth, imageHeight) => {
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
       const scale = Math.max(viewportWidth / imageWidth, viewportHeight / imageHeight);
-      const offsetX = (viewportWidth - imageWidth * scale) / 2;
-      const offsetY = (viewportHeight - imageHeight * scale) / 2;
+      return {
+        viewportWidth,
+        viewportHeight,
+        scale,
+        offsetX: (viewportWidth - imageWidth * scale) / 2,
+        offsetY: (viewportHeight - imageHeight * scale) / 2,
+        width: imageWidth * scale,
+        height: imageHeight * scale,
+      };
+    };
+
+    const landmarkToScreen = (point, metrics) => ({
+      x: metrics.offsetX + point.x * metrics.width,
+      y: metrics.offsetY + point.y * metrics.height,
+    });
+
+    const palmCenter = (landmarks, metrics) => {
+      const palmPoints = [0, 5, 9, 13, 17].map((index) => landmarkToScreen(landmarks[index], metrics));
+      return {
+        x: palmPoints.reduce((sum, point) => sum + point.x, 0) / palmPoints.length,
+        y: palmPoints.reduce((sum, point) => sum + point.y, 0) / palmPoints.length,
+      };
+    };
+
+    const positionHandBoxes = (hands, imageWidth, imageHeight) => {
+      const overlay = document.querySelector('#hand-boxes');
+      overlay.replaceChildren();
+      const metrics = getVideoMetrics(imageWidth, imageHeight);
+      const palmIndexes = [0, 1, 2, 5, 6, 9, 10, 13, 14, 17, 18];
       hands.forEach((landmarks) => {
-        const xs = landmarks.map((point) => point.x);
-        const ys = landmarks.map((point) => point.y);
-        const minX = Math.max(0, Math.min(...xs) - 0.035);
-        const maxX = Math.min(1, Math.max(...xs) + 0.035);
-        const minY = Math.max(0, Math.min(...ys) - 0.035);
-        const maxY = Math.min(1, Math.max(...ys) + 0.035);
+        const points = palmIndexes.map((index) => landmarks[index]);
+        let minX = Math.min(...points.map((point) => point.x));
+        let maxX = Math.max(...points.map((point) => point.x));
+        let minY = Math.min(...points.map((point) => point.y));
+        let maxY = Math.max(...points.map((point) => point.y));
+        const insetX = (maxX - minX) * 0.16;
+        const insetY = (maxY - minY) * 0.16;
+        minX += insetX;
+        maxX -= insetX;
+        minY += insetY;
+        maxY -= insetY;
         const box = document.createElement('div');
         box.className = 'hand-box';
-        box.style.left = `${offsetX + minX * imageWidth * scale}px`;
-        box.style.top = `${offsetY + minY * imageHeight * scale}px`;
-        box.style.width = `${Math.max(8, (maxX - minX) * imageWidth * scale)}px`;
-        box.style.height = `${Math.max(8, (maxY - minY) * imageHeight * scale)}px`;
+        box.style.left = `${metrics.offsetX + minX * metrics.width}px`;
+        box.style.top = `${metrics.offsetY + minY * metrics.height}px`;
+        box.style.width = `${Math.max(6, (maxX - minX) * metrics.width)}px`;
+        box.style.height = `${Math.max(6, (maxY - minY) * metrics.height)}px`;
         overlay.appendChild(box);
       });
+      return metrics;
+    };
+
+    const showPunchDamage = (damage) => {
+      dummyHp = Math.max(0, dummyHp - damage);
+      document.querySelector('#dummy-hp-fill').style.width = `${dummyHp}%`;
+      document.querySelector('#dummy-hp-text').textContent = `${dummyHp} / 100 HP`;
+      const pop = document.querySelector('#damage-pop');
+      pop.textContent = `−${damage}`;
+      pop.classList.remove('show');
+      void pop.offsetWidth;
+      pop.classList.add('show');
+      document.querySelector('#hand-status').textContent = `Удар! −${damage} HP`;
+      if (dummyHp <= 0) {
+        const dummy = document.querySelector('#bag-dummy');
+        if (dummy) dummy.setAttribute('visible', false);
+        document.querySelector('#sparring-complete').hidden = false;
+        document.querySelector('#hand-status').textContent = 'Уровень пройден!';
+      }
+    };
+
+    const resetSparringRound = () => {
+      dummyHp = 100;
+      lastPunchAt = 0;
+      handTracks.clear();
+      document.querySelector('#dummy-hp-fill').style.width = '100%';
+      document.querySelector('#dummy-hp-text').textContent = '100 / 100 HP';
+      document.querySelector('#damage-pop').classList.remove('show');
+      document.querySelector('#sparring-complete').hidden = true;
+      const dummy = document.querySelector('#bag-dummy');
+      if (dummy) {
+        dummy.setAttribute('visible', true);
+        const physics = dummy.components && dummy.components['dummy-spring'];
+        if (physics) physics.reset();
+      }
+      document.querySelector('#hand-status').textContent = 'Покажи ладони и сделай быстрый замах по груше.';
+      lastVideoTime = -1;
+      if (handTask && !handFrame) handFrame = window.requestAnimationFrame(handDetectionFrame);
+    };
+
+    const updateSparringHands = (result, hands, metrics, now) => {
+      if (currentLevel !== 3 || dummyHp <= 0) return;
+      const targetX = metrics.viewportWidth * 0.5;
+      const targetY = metrics.viewportHeight * 0.52;
+      const radiusX = metrics.viewportWidth * 0.19;
+      const radiusY = metrics.viewportHeight * 0.15;
+      let strongestContact = null;
+      const nextTracks = new Map();
+      hands.forEach((landmarks, index) => {
+        const center = palmCenter(landmarks, metrics);
+        const key = result.handedness && result.handedness[index] && result.handedness[index][0]
+          ? result.handedness[index][0].categoryName
+          : `hand-${index}`;
+        const previous = handTracks.get(key);
+        const dx = (center.x - targetX) / radiusX;
+        const dy = (center.y - targetY) / radiusY;
+        const normalizedDistance = Math.hypot(dx, dy);
+        const inZone = normalizedDistance <= 1;
+        const closeness = Math.max(0, 1 - normalizedDistance);
+        if (inZone && (!strongestContact || closeness > strongestContact.closeness)) {
+          strongestContact = {nx: dx, ny: dy, closeness};
+        }
+        let speed = 0;
+        let directionX = 0;
+        let directionY = 0;
+        let toward = 0;
+        const point5 = landmarkToScreen(landmarks[5], metrics);
+        const point17 = landmarkToScreen(landmarks[17], metrics);
+        const palmSpan = Math.hypot(point5.x - point17.x, point5.y - point17.y);
+        let sweptZone = inZone;
+        if (previous) {
+          const elapsed = Math.max(0.016, Math.min(0.2, (now - previous.time) / 1000));
+          const vx = (center.x - previous.x) / elapsed;
+          const vy = (center.y - previous.y) / elapsed;
+          const previousNX = (previous.x - targetX) / radiusX;
+          const previousNY = (previous.y - targetY) / radiusY;
+          const segmentX = dx - previousNX;
+          const segmentY = dy - previousNY;
+          const segmentLengthSq = segmentX * segmentX + segmentY * segmentY;
+          const along = segmentLengthSq > 0
+            ? THREE.MathUtils.clamp(-(previousNX * segmentX + previousNY * segmentY) / segmentLengthSq, 0, 1)
+            : 0;
+          sweptZone = Math.hypot(previousNX + segmentX * along, previousNY + segmentY * along) <= 1;
+          const lateralSpeed = Math.hypot(vx, vy);
+          const scaleRate = previous.span > 0 ? (palmSpan - previous.span) / previous.span / elapsed : 0;
+          const depthSpeed = Math.max(0, scaleRate) * 800;
+          speed = Math.hypot(lateralSpeed, depthSpeed);
+          if (lateralSpeed > 0) {
+            directionX = vx / lateralSpeed;
+            directionY = vy / lateralSpeed;
+            const targetDX = targetX - previous.x;
+            const targetDY = targetY - previous.y;
+            const targetLength = Math.hypot(targetDX, targetDY) || 1;
+            toward = (vx * targetDX + vy * targetDY) / (lateralSpeed * targetLength);
+          }
+          const lateralHit = sweptZone && !previous.inZone && lateralSpeed >= 700 && toward >= 0.35;
+          const forwardHit = inZone && scaleRate >= 0.85 && speed >= 700;
+          if ((lateralHit || forwardHit) && now - lastPunchAt >= 460) {
+            const damage = Math.round(10 + Math.min(1, (speed - 700) / 1500) * 30);
+            lastPunchAt = now;
+            const dummy = document.querySelector('#bag-dummy');
+            const physics = dummy && dummy.components && dummy.components['dummy-spring'];
+            if (physics) physics.hit(directionX, directionY, damage / 40);
+            showPunchDamage(damage);
+          }
+        }
+        nextTracks.set(key, {x: center.x, y: center.y, span: palmSpan, time: now, inZone});
+      });
+      handTracks = nextTracks;
+      const dummy = document.querySelector('#bag-dummy');
+      const physics = dummy && dummy.components && dummy.components['dummy-spring'];
+      if (physics) {
+        if (strongestContact) physics.setContact(strongestContact.nx, strongestContact.ny, strongestContact.closeness);
+        else physics.clearContact();
+      }
+      if (!hands.length) {
+        document.querySelector('#hand-status').textContent = 'Покажи руки в кадре — манекен ожидает удара.';
+      } else if (!strongestContact) {
+        document.querySelector('#hand-status').textContent = 'Руки найдены. Наведи ладонь на торс для касания или замаха.';
+      } else if (now - lastPunchAt > 300) {
+        document.querySelector('#hand-status').textContent = 'Касание. Для урона отведи руку и быстро ударь по торсу.';
+      }
     };
 
     const handDetectionFrame = () => {
-      if (currentLevel !== 2 || !handTask) return;
+      if ((currentLevel !== 2 && currentLevel !== 3) || !handTask) return;
+      if (currentLevel === 3 && dummyHp <= 0) { handFrame = 0; return; }
       const now = performance.now();
-      if (now - lastHandInference >= 100) {
+      const video = document.querySelector('#hands-video');
+      if (now - lastHandInference >= 34 && video.readyState >= 2 && video.videoWidth && video.videoHeight && video.currentTime !== lastVideoTime) {
         lastHandInference = now;
-        const video = document.querySelector('#hands-video');
-        if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
-          try {
-            const result = handTask.detectForVideo(video, now);
-            const hands = result.landmarks || [];
-            positionHandBoxes(hands, video.videoWidth, video.videoHeight);
-            document.querySelector('#hand-status').textContent = hands.length
-              ? `Рук в кадре: ${hands.length} · красная рамка показывает найденную руку`
-              : 'Модель готова — покажи руку в кадре';
-          } catch (error) {
-            document.querySelector('#hand-boxes').replaceChildren();
-            document.querySelector('#hand-status').textContent = `Ошибка распознавания: ${String(error && error.message || error).slice(0, 90)}`;
-            handFrame = 0;
-            return;
-          }
+        lastVideoTime = video.currentTime;
+        try {
+          const result = handTask.detectForVideo(video, now);
+          const hands = result.landmarks || [];
+          const metrics = positionHandBoxes(hands, video.videoWidth, video.videoHeight);
+          if (currentLevel === 3) updateSparringHands(result, hands, metrics, now);
+          else document.querySelector('#hand-status').textContent = hands.length
+            ? `Рук в кадре: ${hands.length} · рамка внутри ладони`
+            : 'Модель готова — покажи руку в кадре';
+        } catch (error) {
+          document.querySelector('#hand-boxes').replaceChildren();
+          document.querySelector('#hand-status').textContent = `Ошибка распознавания: ${String(error && error.message || error).slice(0, 90)}`;
+          handFrame = 0;
+          return;
         }
       }
       handFrame = window.requestAnimationFrame(handDetectionFrame);
@@ -448,20 +684,33 @@
       document.querySelector('#hand-boxes').replaceChildren();
     };
 
-    const startHandLevel = async () => {
-      currentLevel = 2;
+    const startHandLevel = async (level = 2) => {
+      currentLevel = level;
       document.querySelector('#launch-screen').hidden = true;
       document.querySelector('#hand-screen').hidden = false;
       setGameUi(false);
-      document.querySelector('#hand-status').textContent = 'Запрашиваю камеру…';
+      document.querySelector('.hand-title').textContent = level === 3 ? 'Уровень 3 · Тренировка' : 'Уровень 2 · Проверка рук';
+      document.querySelector('#dummy-hud').hidden = level !== 3;
+      document.querySelector('#sparring-complete').hidden = true;
+      if (level === 3) {
+        mountSparringScene();
+        dummyHp = 100;
+        document.querySelector('#dummy-hp-fill').style.width = '100%';
+        document.querySelector('#dummy-hp-text').textContent = '100 / 100 HP';
+      } else {
+        const previousScene = document.querySelector('#sparring-scene');
+        if (previousScene) previousScene.remove();
+      }
+      document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру…';
       releaseHandResources();
+      handTracks.clear();
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
         handStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: {facingMode: {ideal: 'user'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 30}},
+          video: {facingMode: {exact: 'environment'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 30}},
         });
-        if (currentLevel !== 2) {
+        if (currentLevel !== level) {
           handStream.getTracks().forEach((track) => track.stop());
           handStream = null;
           return;
@@ -469,26 +718,32 @@
         const video = document.querySelector('#hands-video');
         video.srcObject = handStream;
         await video.play();
-        document.querySelector('#hand-status').textContent = 'Камера включена. Загружаю модель распознавания…';
+        document.querySelector('#hand-status').textContent = level === 3
+          ? 'Основная камера включена. Загружаю систему боя…'
+          : 'Основная камера включена. Загружаю распознавание рук…';
         const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
         const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
         handTask = await vision.HandLandmarker.createFromOptions(files, {
           baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'CPU'},
           runningMode: 'VIDEO',
           numHands: 2,
-          minHandDetectionConfidence: 0.35,
-          minHandPresenceConfidence: 0.35,
+          minHandDetectionConfidence: 0.4,
+          minHandPresenceConfidence: 0.4,
           minTrackingConfidence: 0.35,
         });
-        if (currentLevel !== 2) {
+        if (currentLevel !== level) {
           releaseHandResources();
           return;
         }
         lastHandInference = 0;
-        document.querySelector('#hand-status').textContent = 'Модель готова — покажи руку в кадре';
-        handFrame = window.requestAnimationFrame(handDetectionFrame);
+        lastVideoTime = -1;
+        if (level === 3) resetSparringRound();
+        else {
+          document.querySelector('#hand-status').textContent = 'Модель готова — покажи руку в кадре';
+          handFrame = window.requestAnimationFrame(handDetectionFrame);
+        }
       } catch (error) {
-        if (currentLevel === 2) {
+        if (currentLevel === level) {
           const detail = String(error && error.message || error).slice(0, 100);
           document.querySelector('#hand-status').textContent = `Не загрузилось распознавание (${detail}). Проверь интернет и нажми назад, затем попробуй снова.`;
         }
@@ -511,7 +766,9 @@
 
     const returnToMenu = () => {
       hideSettings(false);
-      if (currentLevel === 2) releaseHandResources();
+      if (currentLevel === 2 || currentLevel === 3) releaseHandResources();
+      const sparringScene = document.querySelector('#sparring-scene');
+      if (sparringScene) sparringScene.remove();
       if (currentLevel === 1) {
         try { if (window.XR8) XR8.stop(); } catch (error) { /* Scene teardown still runs if XR was already stopped. */ }
         const scene = document.querySelector('a-scene');
@@ -519,6 +776,8 @@
       }
       currentLevel = 0;
       document.querySelector('#hand-screen').hidden = true;
+      document.querySelector('#dummy-hud').hidden = true;
+      document.querySelector('#sparring-complete').hidden = true;
       setGameUi(false);
       document.querySelector('#launch-screen').hidden = false;
       document.querySelector('#launch-status').textContent = 'Выбери уровень, чтобы продолжить.';
@@ -533,14 +792,19 @@
         else document.querySelector('#status').textContent = 'AR-сцена ещё загружается. Подожди секунду и нажми снова.';
       } else if (currentLevel === 2) {
         releaseHandResources();
-        startHandLevel();
+        startHandLevel(2);
+      } else if (currentLevel === 3) {
+        resetSparringRound();
       }
     };
 
     const bindUi = () => {
       document.querySelector('#level-one').addEventListener('click', startLevelOne);
-      document.querySelector('#level-two').addEventListener('click', startHandLevel);
+      document.querySelector('#level-two').addEventListener('click', () => startHandLevel(2));
+      document.querySelector('#level-three').addEventListener('click', () => startHandLevel(3));
       document.querySelector('#hand-back').addEventListener('click', returnToMenu);
+      document.querySelector('#sparring-again').addEventListener('click', resetSparringRound);
+      document.querySelector('#sparring-menu').addEventListener('click', returnToMenu);
       document.querySelector('#settings-button').addEventListener('click', openSettings);
       document.querySelector('#continue-game').addEventListener('click', () => hideSettings());
       document.querySelector('#restart-level').addEventListener('click', restartLevel);
@@ -554,7 +818,7 @@
     window.addEventListener('XRloaded', prepareStartButton, {once: true});
     if (window.XR8) prepareStartButton();
     window.setTimeout(() => {
-      if (!arEngineReady) document.querySelector('#launch-status').textContent = 'AR долго загружается. Обнови страницу и попробуй ещё раз; второй уровень доступен отдельно.';
+      if (!arEngineReady) document.querySelector('#launch-status').textContent = 'AR долго загружается. Обнови страницу и попробуй ещё раз; уровни 2 и 3 доступны отдельно.';
     }, 20000);
   </script>
 </head>
@@ -572,13 +836,16 @@
       <svg class="launch-crystal" viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="crystal-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#62f5dd"/><stop offset="1" stop-color="#a98aff"/></linearGradient></defs><path fill="url(#crystal-gradient)" d="M64 4 97 38 64 124 31 38z"/><path fill="#fff" fill-opacity=".76" d="M31 38h66L64 4z"/></svg>
       <div class="launch-kicker">AR · охота за сокровищами</div>
       <h1 id="launch-title" class="launch-title">Кристаллы комнаты</h1>
-      <p class="launch-copy">Выбери уровень. В первом — поиск кристаллов с пространственным трекингом, во втором — проверка распознавания рук.</p>
+      <p class="launch-copy">Выбери уровень: охота за кристаллами, проверка рук или тренировочный бой.</p>
       <div class="level-grid">
         <button id="level-one" class="level-card" type="button" disabled>
           <span class="level-number">Уровень 1</span><strong>Поиск кристаллов</strong><small>Расставь кристаллы в комнате и собери их, подходя ближе.</small>
         </button>
         <button id="level-two" class="level-card secondary" type="button">
           <span class="level-number">Уровень 2</span><strong>Проверка рук</strong><small>Покажи руки камере — найденные руки обведутся полупрозрачным красным.</small>
+        </button>
+        <button id="level-three" class="level-card tertiary" type="button">
+          <span class="level-number">Уровень 3</span><strong>Тренировка с манекеном</strong><small>Касайся торса или бей быстрым замахом — манекен качнётся, а HP уменьшится.</small>
         </button>
       </div>
       <div id="launch-status">Подготавливаем AR-трекинг…</div>
@@ -600,8 +867,52 @@
     <div class="hand-shade"></div>
     <div id="hand-boxes"></div>
     <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div></div>
+    <div id="dummy-hud" hidden>
+      <div id="damage-pop"></div>
+      <div id="dummy-name">Манекен, Танис</div>
+      <div id="dummy-hp-track"><span id="dummy-hp-fill"></span></div>
+      <small id="dummy-hp-text">100 / 100 HP</small>
+    </div>
     <div id="hand-status">Подготовка камеры…</div>
+    <div id="sparring-complete" hidden>
+      <section class="sparring-result-card">
+        <h2>Уровень пройден!</h2>
+        <p>Манекен Танис повержен.</p>
+        <button id="sparring-again" type="button">Ещё раунд</button>
+        <button id="sparring-menu" type="button">В главное меню</button>
+      </section>
+    </div>
   </div>
+
+  <template id="sparring-scene-template">
+    <a-scene id="sparring-scene" embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440">
+      <a-camera position="0 1.28 0" camera="active: true; fov: 60; near: 0.1; far: 16" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+      <a-entity light="type: directional; intensity: 1.05" position="-2 4 3"></a-entity>
+      <a-light type="ambient" intensity="0.75"></a-light>
+      <a-entity id="bag-dummy" position="0 0 -2.7" dummy-spring>
+        <a-cylinder position="0 0.15 0" radius="0.47" height="0.30" segments-radial="8" material="color: #24243a; metalness: 0.32; roughness: 0.42"></a-cylinder>
+        <a-cylinder position="0 0.31 0" radius="0.40" height="0.05" segments-radial="8" material="color: #62f5dd; emissive: #126861; emissive-intensity: 0.18; metalness: 0.42; roughness: 0.3"></a-cylinder>
+        <a-cylinder position="0 0.49 0" radius="0.075" height="0.37" segments-radial="8" material="color: #4d4671; metalness: 0.5; roughness: 0.38"></a-cylinder>
+        <a-entity position="0 0.39 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #a98aff; emissive: #35225f; emissive-intensity: 0.25; metalness: 0.44; roughness: 0.32"></a-entity>
+        <a-entity position="0 0.46 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #62f5dd; emissive: #165e60; emissive-intensity: 0.2; metalness: 0.42; roughness: 0.34"></a-entity>
+        <a-entity position="0 0.53 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #a98aff; emissive: #35225f; emissive-intensity: 0.25; metalness: 0.44; roughness: 0.32"></a-entity>
+        <a-entity position="0 0.60 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #62f5dd; emissive: #165e60; emissive-intensity: 0.2; metalness: 0.42; roughness: 0.34"></a-entity>
+        <a-entity id="dummy-body" position="0 0.68 0">
+          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0 0.46 0" scale="0.48 0.60 0.31" material="color: #f0a27f; emissive: #552718; emissive-intensity: 0.05; metalness: 0.12; roughness: 0.46; flatShading: true"></a-entity>
+          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0 0.79 0" scale="0.62 0.23 0.34" material="color: #f4b08d; emissive: #552718; emissive-intensity: 0.04; metalness: 0.1; roughness: 0.46; flatShading: true"></a-entity>
+          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="-0.49 0.66 0" rotation="0 0 -12" scale="0.19 0.40 0.22" material="color: #efa17e; metalness: 0.1; roughness: 0.48; flatShading: true"></a-entity>
+          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0.49 0.66 0" rotation="0 0 12" scale="0.19 0.40 0.22" material="color: #efa17e; metalness: 0.1; roughness: 0.48; flatShading: true"></a-entity>
+          <a-cylinder position="0 1.01 0" radius="0.13" height="0.18" segments-radial="8" material="color: #e99a78; roughness: 0.5"></a-cylinder>
+          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0 1.27 0" scale="0.24 0.30 0.23" material="color: #f3ad89; metalness: 0.08; roughness: 0.45; flatShading: true"></a-entity>
+          <a-entity geometry="primitive: sphere" position="-0.075 1.30 0.205" scale="0.026 0.042 0.018" material="color: #362b48; roughness: 0.38"></a-entity>
+          <a-entity geometry="primitive: sphere" position="0.075 1.30 0.205" scale="0.026 0.042 0.018" material="color: #362b48; roughness: 0.38"></a-entity>
+          <a-entity geometry="primitive: icosahedron; radius: 0.12" position="0 0.51 0.315" material="color: #62f5dd; emissive: #16766b; emissive-intensity: 0.32; metalness: 0.4; roughness: 0.22"></a-entity>
+          <a-entity geometry="primitive: octahedron; radius: 0.075" position="-0.14 0.51 0.285" rotation="0 0 30" material="color: #ff76c8; emissive: #87335e; emissive-intensity: 0.18; metalness: 0.22; roughness: 0.28"></a-entity>
+          <a-entity geometry="primitive: octahedron; radius: 0.075" position="0.14 0.51 0.285" rotation="0 0 -30" material="color: #a98aff; emissive: #4f367c; emissive-intensity: 0.18; metalness: 0.22; roughness: 0.28"></a-entity>
+        </a-entity>
+      </a-entity>
+    </a-scene>
+  </template>
 
   <template id="ar-scene-template">
     <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
