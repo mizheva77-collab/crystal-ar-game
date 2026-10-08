@@ -14,32 +14,102 @@
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #080c17; color: #f4f7ff; }
     body { touch-action: manipulation; }
     a-scene { position: fixed; inset: 0; width: 100%; height: 100%; }
-    .hud { position: fixed; z-index: 4; top: max(14px, env(safe-area-inset-top)); left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; text-shadow: 0 2px 12px #000; }
+    .hud { position: fixed; z-index: 4; top: max(14px, env(safe-area-inset-top)); left: 14px; right: 14px; display: none; justify-content: space-between; align-items: flex-start; pointer-events: none; text-shadow: 0 2px 12px #000; }
+    .hud.active { display: flex; }
+    .game-heading { margin-left: 52px; }
     .brand { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #c2cbea; }
     .title { margin-top: 4px; font-size: 19px; font-weight: 800; }
     .score { padding: 8px 13px; border: 1px solid #ffffff3a; border-radius: 15px; background: #10172bdc; text-align: center; backdrop-filter: blur(10px); }
     .score small { display: block; color: #c2cbea; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
     .score strong { font-size: 22px; }
     .score .fps { color: #a8f8e9; font-size: 10px; letter-spacing: .04em; }
-    .bottom { position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
+    .bottom { display: none; position: fixed; z-index: 4; bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 28px)); text-align: center; pointer-events: none; }
+    .bottom.active { display: block; }
     #status { display: inline-block; padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 16px; background: #0b1122e8; color: #edf3ff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 35px #0009; backdrop-filter: blur(10px); }
     #reset { position: relative; z-index: 6; display: none; margin: 9px auto 0; min-height: 46px; padding: 0 18px; border: 0; border-radius: 13px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 800; pointer-events: auto; touch-action: manipulation; }
     .launch-screen { position: fixed; z-index: 8; inset: 0; display: grid; place-items: center; padding: 22px; background: radial-gradient(ellipse at 50% 25%, #1c3150 0, #090e1c 65%, #070b14 100%); }
     .launch-screen[hidden] { display: none; }
-    .launch-card { width: min(420px, 100%); padding: 30px 24px 24px; border: 1px solid #ffffff24; border-radius: 26px; background: linear-gradient(150deg, #18223ae8, #0b1224f5); box-shadow: 0 24px 80px #0008; text-align: center; }
+    .launch-card { width: min(440px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px 22px 22px; border: 1px solid #ffffff24; border-radius: 26px; background: linear-gradient(150deg, #18223ae8, #0b1224f5); box-shadow: 0 24px 80px #0008; text-align: center; }
     .launch-crystal { width: 72px; height: 72px; margin: 0 auto 13px; filter: drop-shadow(0 0 20px #62f5dd66); }
     .launch-kicker { color: #85f4e0; font-size: 10px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
     .launch-title { margin: 7px 0 10px; font-size: 27px; line-height: 1.05; font-weight: 850; }
     .launch-copy { margin: 0 auto 20px; max-width: 310px; color: #c2cbea; font-size: 14px; line-height: 1.5; }
-    #start { width: 100%; min-height: 52px; border: 0; border-radius: 15px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-size: 16px; font-weight: 850; touch-action: manipulation; }
-    #start:disabled { opacity: .62; }
+    .level-grid { display: grid; gap: 10px; margin-top: 18px; }
+    .level-card { width: 100%; min-height: 90px; padding: 13px 15px; border: 1px solid #ffffff24; border-radius: 17px; background: #101a30; color: #f4f7ff; text-align: left; font: inherit; touch-action: manipulation; }
+    .level-card:active { transform: scale(.985); }
+    .level-card:disabled { opacity: .56; }
+    .level-number { display: block; color: #82eddb; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .level-card strong { display: block; margin-top: 3px; font-size: 16px; }
+    .level-card small { display: block; margin-top: 3px; color: #afbdd7; font-size: 12px; line-height: 1.35; }
+    .level-card.secondary { background: linear-gradient(145deg,#28152b,#151a31); border-color: #ff6b8055; }
+    .level-card.secondary .level-number { color: #ff8796; }
     #launch-status { min-height: 18px; margin-top: 12px; color: #aebbd7; font-size: 12px; }
+    .settings-button { position: fixed; z-index: 7; display: none; place-items: center; top: max(12px, env(safe-area-inset-top)); left: 12px; width: 42px; height: 42px; border: 1px solid #ffffff38; border-radius: 14px; background: #10172be8; color: #f4f7ff; font-size: 21px; pointer-events: auto; touch-action: manipulation; }
+    .settings-button.active { display: grid; }
+    .settings-layer { position: fixed; z-index: 9; inset: 0; display: grid; place-items: center; padding: 20px; background: #05081622; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); opacity: 0; pointer-events: none; transition: opacity .28s ease, backdrop-filter .28s ease, -webkit-backdrop-filter .28s ease; }
+    .settings-layer[hidden] { display: none; }
+    .settings-layer.open { opacity: 1; pointer-events: auto; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    .settings-panel { width: min(400px,100%); padding: 24px; border: 1px solid #ffffff28; border-radius: 24px; background: #0c1427f2; box-shadow: 0 24px 90px #000a; transform: translateY(14px) scale(.98); transition: transform .28s ease; }
+    .settings-layer.open .settings-panel { transform: translateY(0) scale(1); }
+    .settings-panel h2 { margin: 0 0 7px; font-size: 24px; }
+    .settings-panel p { margin: 0 0 18px; color: #b9c6df; font-size: 13px; line-height: 1.4; }
+    .settings-panel button { width: 100%; min-height: 48px; margin-top: 9px; border: 1px solid #ffffff25; border-radius: 14px; background: #17223a; color: #f4f7ff; font: inherit; font-weight: 750; touch-action: manipulation; }
+    .settings-panel button.primary { border: 0; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; }
+    #hand-screen { position: fixed; z-index: 7; inset: 0; overflow: hidden; background: #050816; }
+    #hand-screen[hidden] { display: none; }
+    #hands-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .hand-shade { position: absolute; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
+    #hand-boxes { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 12px; background: #ff25451f; box-shadow: 0 0 22px #ff254558, inset 0 0 20px #ff254522; }
+    .hand-bar { position: absolute; z-index: 2; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; }
+    #hand-back { width: 42px; height: 42px; border: 1px solid #ffffff3b; border-radius: 14px; background: #10172be8; color: #fff; font-size: 20px; }
+    .hand-title { color: white; font-size: 17px; font-weight: 800; text-shadow: 0 2px 10px #000; }
+    #hand-status { position: absolute; z-index: 2; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 15px; background: #0b1122e8; color: #fff; text-align: center; font-size: 13px; line-height: 1.4; }
     .license { position: fixed; z-index: 4; bottom: max(5px, env(safe-area-inset-bottom)); right: 8px; color: #ffffff80; font-size: 8px; text-decoration: none; pointer-events: auto; }
     .arjs-loader, .a-enter-vr, .a-enter-ar { display: none !important; }
     .a-canvas { z-index: 0 !important; }
   </style>
   <script>
     const crystalColors = ['#62f5dd', '#a98aff', '#ff76c8', '#ffd36a', '#76a9ff'];
+
+    AFRAME.registerComponent('pot-bump', {
+      schema: {radius: {default: 0.82}},
+      init() {
+        this.velocity = new THREE.Vector3();
+        this.cameraPosition = new THREE.Vector3();
+        this.potPosition = new THREE.Vector3();
+        this.forward = new THREE.Vector3();
+      },
+      tick(time, timeDelta) {
+        if (currentLevel !== 1) return;
+        const camera = document.querySelector('#camera');
+        if (!camera || !camera.object3D) return;
+        const dt = Math.min((timeDelta || 16) / 1000, 0.05);
+        camera.object3D.getWorldPosition(this.cameraPosition);
+        this.el.object3D.getWorldPosition(this.potPosition);
+        let dx = this.potPosition.x - this.cameraPosition.x;
+        let dz = this.potPosition.z - this.cameraPosition.z;
+        let distance = Math.hypot(dx, dz);
+        if (distance < 0.001) {
+          camera.object3D.getWorldDirection(this.forward);
+          dx = this.forward.x;
+          dz = this.forward.z;
+          distance = Math.hypot(dx, dz) || 1;
+        }
+        if (distance < this.data.radius) {
+          const force = Math.min(3.2, (this.data.radius - distance) * 14);
+          this.velocity.x += dx / distance * force * dt;
+          this.velocity.z += dz / distance * force * dt;
+          const speed = Math.hypot(this.velocity.x, this.velocity.z);
+          if (speed > 2.4) this.velocity.multiplyScalar(2.4 / speed);
+        }
+        this.velocity.multiplyScalar(Math.exp(-4.4 * dt));
+        this.el.object3D.position.x += this.velocity.x * dt;
+        this.el.object3D.position.z += this.velocity.z * dt;
+        this.el.object3D.rotation.z = THREE.MathUtils.clamp(this.velocity.x * 0.06, -0.16, 0.16);
+        this.el.object3D.rotation.x = THREE.MathUtils.clamp(-this.velocity.z * 0.06, -0.16, 0.16);
+      },
+    });
 
     AFRAME.registerComponent('crystal-hunt', {
       init() {
@@ -50,6 +120,7 @@
         this.score = document.querySelector('#score');
         this.resetButton = document.querySelector('#reset');
         this.fpsLabel = document.querySelector('#fps');
+        this.pot = null;
         this.cameraPosition = new THREE.Vector3();
         this.crystalPosition = new THREE.Vector3();
         this.fpsFrames = 0;
@@ -64,7 +135,7 @@
         }, {once: true});
 
         this.el.addEventListener('realityready', () => {
-          this.status.textContent = 'Камера и трекинг комнаты работают. Нажми на пол, чтобы расставить кристаллы.';
+          this.status.textContent = 'Плавно осмотри комнату, чтобы трекинг закрепился. Затем коснись пола.';
         });
         this.el.addEventListener('realityerror', () => {
           this.status.textContent = 'AR не запустился. Открой ссылку в Safari или Chrome и проверь разрешение камеры.';
@@ -78,6 +149,7 @@
 
       spawnField(origin) {
         this.crystals.forEach((crystal) => crystal.remove());
+        if (this.pot) this.pot.remove();
         this.crystals = [];
         this.collected = 0;
         this.started = true;
@@ -93,13 +165,75 @@
           crystal.classList.add('crystal', 'clickable');
           crystal.dataset.index = String(index);
           crystal.setAttribute('position', `${center.x + dx} ${center.y + 0.3} ${center.z + dz}`);
-          crystal.setAttribute('geometry', 'primitive: octahedron; radius: 0.21');
+          crystal.setAttribute('geometry', 'primitive: octahedron; radius: 0.30');
           crystal.setAttribute('material', `color: ${crystalColors[index]}; emissive: ${crystalColors[index]}; emissiveIntensity: 0.75; metalness: 0.18; roughness: 0.2`);
           crystal.addEventListener('click', () => this.collect(crystal));
           this.el.appendChild(crystal);
           this.crystals.push(crystal);
         });
-        this.status.textContent = 'Кристаллы расставлены в комнате. Подойди к каждому ближе чем на метр и нажми.';
+        this.createPot(center);
+        this.status.textContent = 'Подойди к кристаллам ближе чем на метр. Горшок мягко оттолкнётся, если подойти.';
+      },
+
+      createPot(center) {
+        const pot = document.createElement('a-entity');
+        pot.classList.add('flower-pot');
+        pot.setAttribute('position', `${center.x} ${center.y} ${center.z}`);
+        pot.setAttribute('pot-bump', 'radius: 0.82');
+
+        const addPart = (geometry, material, position, rotation = '0 0 0') => {
+          const part = document.createElement('a-entity');
+          part.setAttribute('geometry', geometry);
+          part.setAttribute('material', material);
+          part.setAttribute('position', position);
+          part.setAttribute('rotation', rotation);
+          pot.appendChild(part);
+          return part;
+        };
+
+        addPart('primitive: cylinder; radiusTop: 0.32; radiusBottom: 0.23; height: 0.44; segmentsRadial: 8',
+          'color: #7655d5; emissive: #241245; emissiveIntensity: 0.28; metalness: 0.42; roughness: 0.26', '0 0.23 0');
+        addPart('primitive: cylinder; radius: 0.34; height: 0.09; segmentsRadial: 8',
+          'color: #62f5dd; emissive: #116c70; emissiveIntensity: 0.38; metalness: 0.48; roughness: 0.22', '0 0.45 0');
+        addPart('primitive: cylinder; radius: 0.29; height: 0.035; segmentsRadial: 8',
+          'color: #28233d; roughness: 0.95', '0 0.505 0');
+
+        const blooms = [
+          {x: -0.12, z: 0.00, height: 0.72, lean: -8, color: '#62f5dd'},
+          {x: 0.08, z: -0.06, height: 0.94, lean: 7, color: '#ff76c8'},
+          {x: 0.16, z: 0.07, height: 0.64, lean: 12, color: '#a98aff'},
+        ];
+        blooms.forEach((bloom) => {
+          addPart(`primitive: cylinder; radius: 0.018; height: ${bloom.height}; segmentsRadial: 6`,
+            'color: #5de0bd; emissive: #145f4b; emissiveIntensity: 0.2; roughness: 0.5',
+            `${bloom.x} ${0.51 + bloom.height / 2} ${bloom.z}`, `0 0 ${bloom.lean}`);
+          [-1, 1].forEach((side, leafIndex) => {
+            const leaf = addPart('primitive: octahedron; radius: 0.12',
+              'color: #42d6a5; emissive: #0e573f; emissiveIntensity: 0.22; metalness: 0.08; roughness: 0.35',
+              `${bloom.x + side * 0.105} ${0.51 + bloom.height * (leafIndex ? 0.38 : 0.58)} ${bloom.z + side * 0.025}`,
+              `0 0 ${side * -32}`);
+            leaf.setAttribute('scale', '1.35 0.48 0.58');
+          });
+          const headY = 0.51 + bloom.height;
+          const head = document.createElement('a-entity');
+          head.setAttribute('position', `${bloom.x} ${headY} ${bloom.z}`);
+          pot.appendChild(head);
+          for (let petal = 0; petal < 5; petal += 1) {
+            const angle = petal * Math.PI * 2 / 5;
+            const crystalPetal = document.createElement('a-entity');
+            crystalPetal.setAttribute('geometry', 'primitive: octahedron; radius: 0.095');
+            crystalPetal.setAttribute('material', `color: ${bloom.color}; emissive: ${bloom.color}; emissiveIntensity: 0.38; metalness: 0.18; roughness: 0.22`);
+            crystalPetal.setAttribute('position', `${Math.cos(angle) * 0.105} ${Math.sin(angle) * 0.105} 0`);
+            crystalPetal.setAttribute('scale', '0.9 1.25 0.65');
+            head.appendChild(crystalPetal);
+          }
+          const centerGem = document.createElement('a-entity');
+          centerGem.setAttribute('geometry', 'primitive: icosahedron; radius: 0.075');
+          centerGem.setAttribute('material', 'color: #fff0b0; emissive: #ffd36a; emissiveIntensity: 0.72; metalness: 0.2; roughness: 0.18');
+          head.appendChild(centerGem);
+        });
+        this.el.appendChild(pot);
+        this.pot = pot;
       },
 
       getCenterAhead() {
@@ -152,52 +286,227 @@
     });
 
     let arEngineReady = false;
+    let currentLevel = 0;
+    let coachingAdded = false;
+    let handStream = null;
+    let handTask = null;
+    let handFrame = 0;
+    let lastHandInference = 0;
+
     const prepareStartButton = () => {
       arEngineReady = true;
-      const startButton = document.querySelector('#start');
+      const levelOne = document.querySelector('#level-one');
       const launchStatus = document.querySelector('#launch-status');
-      if (!startButton || !launchStatus) return;
-      startButton.disabled = false;
-      startButton.textContent = 'Начать AR';
-      launchStatus.textContent = 'Потребуется разрешить доступ к камере.';
+      if (levelOne) levelOne.disabled = false;
+      if (launchStatus) launchStatus.textContent = 'Уровень 1 готов. Камера включится после выбора уровня.';
+    };
+
+    const setGameUi = (active) => {
+      document.querySelector('#game-hud').classList.toggle('active', active);
+      document.querySelector('#game-bottom').classList.toggle('active', active);
+      document.querySelector('#settings-button').classList.toggle('active', active);
     };
 
     const mountARScene = () => {
       if (document.querySelector('a-scene')) return true;
       if (!window.XR8 || !XR8.XrController) return false;
       XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
+      if (!coachingAdded && XR8.CoachingOverlay) {
+        XR8.CoachingOverlay.configure({
+          animationColor: '#62f5dd',
+          promptColor: '#ffffff',
+          promptText: 'Плавно проведи телефоном вперёд и назад, чтобы трекинг закрепился',
+        });
+        XR8.addCameraPipelineModule(XR8.CoachingOverlay.pipelineModule());
+        coachingAdded = true;
+      }
       const template = document.querySelector('#ar-scene-template');
       if (!template) return false;
       document.body.appendChild(template.content.cloneNode(true));
       return true;
     };
 
-    const startAR = () => {
+    const startLevelOne = () => {
       if (!arEngineReady) return;
-      if (mountARScene()) document.querySelector('#launch-screen').hidden = true;
-      else document.querySelector('#launch-status').textContent = 'Не удалось запустить камеру. Обнови страницу и попробуй ещё раз.';
+      currentLevel = 1;
+      try {
+        if (!mountARScene()) throw new Error('AR engine is unavailable');
+        document.querySelector('#launch-screen').hidden = true;
+        setGameUi(true);
+      } catch (error) {
+        currentLevel = 0;
+        document.querySelector('#launch-status').textContent = 'Не удалось запустить AR. Обнови страницу и попробуй ещё раз.';
+      }
     };
 
-    const bindStartButton = () => {
-      document.querySelector('#start')?.addEventListener('click', startAR);
+    const positionHandBoxes = (hands, imageWidth, imageHeight) => {
+      const overlay = document.querySelector('#hand-boxes');
+      overlay.replaceChildren();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const scale = Math.max(viewportWidth / imageWidth, viewportHeight / imageHeight);
+      const offsetX = (viewportWidth - imageWidth * scale) / 2;
+      const offsetY = (viewportHeight - imageHeight * scale) / 2;
+      hands.forEach((landmarks) => {
+        const xs = landmarks.map((point) => point.x);
+        const ys = landmarks.map((point) => point.y);
+        const minX = Math.max(0, Math.min(...xs) - 0.035);
+        const maxX = Math.min(1, Math.max(...xs) + 0.035);
+        const minY = Math.max(0, Math.min(...ys) - 0.035);
+        const maxY = Math.min(1, Math.max(...ys) + 0.035);
+        const box = document.createElement('div');
+        box.className = 'hand-box';
+        box.style.left = `${offsetX + minX * imageWidth * scale}px`;
+        box.style.top = `${offsetY + minY * imageHeight * scale}px`;
+        box.style.width = `${Math.max(8, (maxX - minX) * imageWidth * scale)}px`;
+        box.style.height = `${Math.max(8, (maxY - minY) * imageHeight * scale)}px`;
+        overlay.appendChild(box);
+      });
+    };
+
+    const handDetectionFrame = () => {
+      if (currentLevel !== 2 || !handTask) return;
+      const now = performance.now();
+      if (now - lastHandInference >= 100) {
+        lastHandInference = now;
+        const video = document.querySelector('#hands-video');
+        if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+          const result = handTask.detectForVideo(video, now);
+          const hands = result.landmarks || [];
+          positionHandBoxes(hands, video.videoWidth, video.videoHeight);
+          document.querySelector('#hand-status').textContent = hands.length
+            ? `Рук в кадре: ${hands.length} · красная рамка показывает найденную руку`
+            : 'Покажи руки камере и держи их в кадре';
+        }
+      }
+      handFrame = window.requestAnimationFrame(handDetectionFrame);
+    };
+
+    const releaseHandResources = () => {
+      if (handFrame) window.cancelAnimationFrame(handFrame);
+      handFrame = 0;
+      if (handTask) handTask.close();
+      handTask = null;
+      if (handStream) handStream.getTracks().forEach((track) => track.stop());
+      handStream = null;
+      const video = document.querySelector('#hands-video');
+      if (video) video.srcObject = null;
+      document.querySelector('#hand-boxes').replaceChildren();
+    };
+
+    const startHandLevel = async () => {
+      currentLevel = 2;
+      document.querySelector('#launch-screen').hidden = true;
+      document.querySelector('#hand-screen').hidden = false;
+      setGameUi(false);
+      document.querySelector('#hand-status').textContent = 'Запрашиваю камеру…';
+      releaseHandResources();
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
+        handStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {facingMode: {ideal: 'environment'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 30, max: 30}},
+        });
+        if (currentLevel !== 2) {
+          handStream.getTracks().forEach((track) => track.stop());
+          handStream = null;
+          return;
+        }
+        const video = document.querySelector('#hands-video');
+        video.srcObject = handStream;
+        await video.play();
+        document.querySelector('#hand-status').textContent = 'Загружаю распознавание рук…';
+        const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs');
+        const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+        handTask = await vision.HandLandmarker.createFromOptions(files, {
+          baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task'},
+          runningMode: 'VIDEO',
+          numHands: 2,
+          minHandDetectionConfidence: 0.45,
+          minHandPresenceConfidence: 0.45,
+          minTrackingConfidence: 0.45,
+        });
+        if (currentLevel !== 2) {
+          releaseHandResources();
+          return;
+        }
+        lastHandInference = 0;
+        document.querySelector('#hand-status').textContent = 'Покажи руки камере';
+        handFrame = window.requestAnimationFrame(handDetectionFrame);
+      } catch (error) {
+        if (currentLevel === 2) document.querySelector('#hand-status').textContent = 'Не удалось включить распознавание. Проверь разрешение камеры и интернет.';
+      }
+    };
+
+    const hideSettings = (resume = true) => {
+      const layer = document.querySelector('#settings-layer');
+      layer.classList.remove('open');
+      window.setTimeout(() => { layer.hidden = true; }, 290);
+      if (resume && currentLevel === 1 && window.XR8 && XR8.isPaused && XR8.isPaused()) XR8.resume();
+    };
+
+    const openSettings = () => {
+      const layer = document.querySelector('#settings-layer');
+      layer.hidden = false;
+      requestAnimationFrame(() => layer.classList.add('open'));
+      if (currentLevel === 1 && window.XR8 && !XR8.isPaused()) XR8.pause();
+    };
+
+    const returnToMenu = () => {
+      hideSettings(false);
+      if (currentLevel === 2) releaseHandResources();
+      if (currentLevel === 1) {
+        try { if (window.XR8) XR8.stop(); } catch (error) { /* Scene teardown still runs if XR was already stopped. */ }
+        const scene = document.querySelector('a-scene');
+        if (scene) scene.remove();
+      }
+      currentLevel = 0;
+      document.querySelector('#hand-screen').hidden = true;
+      setGameUi(false);
+      document.querySelector('#launch-screen').hidden = false;
+      document.querySelector('#launch-status').textContent = 'Выбери уровень, чтобы продолжить.';
+    };
+
+    const restartLevel = () => {
+      hideSettings();
+      if (currentLevel === 1) {
+        const scene = document.querySelector('a-scene');
+        const game = scene && scene.components['crystal-hunt'];
+        if (game) game.spawnField(null);
+      } else if (currentLevel === 2) {
+        releaseHandResources();
+        startHandLevel();
+      }
+    };
+
+    const bindUi = () => {
+      document.querySelector('#level-one').addEventListener('click', startLevelOne);
+      document.querySelector('#level-two').addEventListener('click', startHandLevel);
+      document.querySelector('#hand-back').addEventListener('click', returnToMenu);
+      document.querySelector('#settings-button').addEventListener('click', openSettings);
+      document.querySelector('#continue-game').addEventListener('click', () => hideSettings());
+      document.querySelector('#restart-level').addEventListener('click', restartLevel);
+      document.querySelector('#return-menu').addEventListener('click', returnToMenu);
       if (arEngineReady) prepareStartButton();
     };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindStartButton, {once: true});
-    else bindStartButton();
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindUi, {once: true});
+    else bindUi();
     window.addEventListener('xrloaded', prepareStartButton, {once: true});
     window.addEventListener('XRloaded', prepareStartButton, {once: true});
     if (window.XR8) prepareStartButton();
     window.setTimeout(() => {
-      if (!arEngineReady) document.querySelector('#launch-status').textContent = 'AR долго загружается. Обнови страницу и попробуй ещё раз.';
+      if (!arEngineReady) document.querySelector('#launch-status').textContent = 'AR долго загружается. Обнови страницу и попробуй ещё раз; второй уровень доступен отдельно.';
     }, 20000);
   </script>
 </head>
 <body>
-  <div class="hud">
-    <div><div class="brand">AR · ОХОТА ЗА СОКРОВИЩАМИ</div><div class="title">Кристаллы комнаты</div></div>
+  <div id="game-hud" class="hud">
+    <div class="game-heading"><div class="brand">AR · ОХОТА ЗА СОКРОВИЩАМИ</div><div class="title">Кристаллы комнаты</div></div>
     <div class="score"><small>Собрано</small><strong id="score">0 / 5</strong><small id="fps" class="fps">… FPS</small></div>
   </div>
-  <div class="bottom"><div id="status">Коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
+  <button id="settings-button" class="settings-button" aria-label="Настройки" type="button">⚙</button>
+  <div id="game-bottom" class="bottom"><div id="status">Плавно осмотри комнату и коснись пола, чтобы расставить кристаллы.</div><button id="reset">Играть ещё раз</button></div>
   <a class="license" href="https://github.com/8thwall/engine/blob/main/LICENSE" target="_blank" rel="noopener">XR Engine: Niantic Spatial © 2026 · license</a>
 
   <div id="launch-screen" class="launch-screen">
@@ -205,19 +514,44 @@
       <svg class="launch-crystal" viewBox="0 0 128 128" aria-hidden="true"><defs><linearGradient id="crystal-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#62f5dd"/><stop offset="1" stop-color="#a98aff"/></linearGradient></defs><path fill="url(#crystal-gradient)" d="M64 4 97 38 64 124 31 38z"/><path fill="#fff" fill-opacity=".76" d="M31 38h66L64 4z"/></svg>
       <div class="launch-kicker">AR · охота за сокровищами</div>
       <h1 id="launch-title" class="launch-title">Кристаллы комнаты</h1>
-      <p class="launch-copy">Найди пять кристаллов в своей комнате. Чтобы забрать каждый, подойди к нему и нажми на экран.</p>
-      <button id="start" type="button" disabled>Загружаем AR…</button>
-      <div id="launch-status">Подготавливаем трекинг комнаты…</div>
+      <p class="launch-copy">Выбери уровень. В первом — поиск кристаллов с пространственным трекингом, во втором — проверка распознавания рук.</p>
+      <div class="level-grid">
+        <button id="level-one" class="level-card" type="button" disabled>
+          <span class="level-number">Уровень 1</span><strong>Поиск кристаллов</strong><small>Расставь кристаллы в комнате и собери их, подходя ближе.</small>
+        </button>
+        <button id="level-two" class="level-card secondary" type="button">
+          <span class="level-number">Уровень 2</span><strong>Проверка рук</strong><small>Покажи руки камере — найденные руки обведутся полупрозрачным красным.</small>
+        </button>
+      </div>
+      <div id="launch-status">Подготавливаем AR-трекинг…</div>
     </section>
   </div>
 
+  <div id="settings-layer" class="settings-layer" hidden>
+    <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Настройки</h2>
+      <p>Трекингу помогает плавное движение телефона и хорошо освещённая комната с видимыми деталями.</p>
+      <button id="continue-game" class="primary" type="button">Продолжить</button>
+      <button id="restart-level" type="button">Начать уровень заново</button>
+      <button id="return-menu" type="button">В главное меню</button>
+    </section>
+  </div>
+
+  <div id="hand-screen" hidden>
+    <video id="hands-video" autoplay playsinline muted></video>
+    <div class="hand-shade"></div>
+    <div id="hand-boxes"></div>
+    <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div></div>
+    <div id="hand-status">Подготовка камеры…</div>
+  </div>
+
   <template id="ar-scene-template">
-    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
       <a-assets></a-assets>
       <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
       <a-entity light="type: directional; intensity: 0.9" position="1 4 2"></a-entity>
       <a-light type="ambient" intensity="0.65"></a-light>
-      <a-box id="ground" class="cantap" scale="1000 2 1000" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28"></a-box>
+      <a-box id="ground" class="cantap" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28"></a-box>
     </a-scene>
   </template>
 </body>
