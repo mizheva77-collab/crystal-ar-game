@@ -196,6 +196,7 @@
       init() {
         this.velocity = new THREE.Vector3();
         this.angularVelocity = new THREE.Vector3();
+        this.throwOrigin = new THREE.Vector3();
         this.held = false;
         this.groundY = 0.055;
       },
@@ -214,6 +215,7 @@
         const scene = this.el.sceneEl;
         if (scene && scene.object3D) scene.object3D.attach(this.el.object3D);
         this.held = false;
+        this.el.object3D.getWorldPosition(this.throwOrigin);
         this.velocity.copy(worldVelocity);
         const speed = this.velocity.length();
         if (speed > 7.5) this.velocity.multiplyScalar(7.5 / speed);
@@ -223,6 +225,11 @@
         if (this.held) return;
         const dt = Math.min((timeDelta || 16) / 1000, 0.05);
         const object = this.el.object3D;
+        object.getWorldPosition(this._worldPosition || (this._worldPosition = new THREE.Vector3()));
+        if (this._worldPosition.distanceTo(this.throwOrigin) >= 4.5) {
+          this.velocity.x = 0;
+          this.velocity.z = 0;
+        }
         if (object.position.y > this.groundY || this.velocity.y > 0) this.velocity.y -= 9.81 * dt;
         object.position.addScaledVector(this.velocity, dt);
         object.rotation.x += this.angularVelocity.x * dt;
