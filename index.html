@@ -89,8 +89,10 @@
     #room-scan-panel[hidden] { display: none; }
     #room-scan-panel strong { display: block; font-size: 15px; }
     #room-scan-copy { display: block; margin-top: 5px; color: #c2cbea; font-size: 12px; line-height: 1.4; }
+    #room-radar { display: block; width: min(224px, 68vw); height: auto; aspect-ratio: 1; margin: 11px auto 7px; border: 1px solid #62f5dd55; border-radius: 14px; background: #07111e; box-shadow: inset 0 0 22px #62f5dd10; }
+    #room-radar-legend { display: block; color: #9eacc7; font-size: 10px; line-height: 1.35; }
     #room-scan-track { height: 10px; margin: 11px 0 8px; overflow: hidden; border-radius: 99px; background: #ffffff26; }
-    #room-scan-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#62f5dd,#a98aff); transition: width .18s ease; }
+    #room-scan-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: #62f5dd; transition: width .18s ease; }
     #start-dummy { width: 100%; min-height: 44px; border: 0; border-radius: 12px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 850; opacity: .45; }
     #start-dummy:enabled { opacity: 1; }
     .sparring-result-card { width: min(340px,100%); padding: 25px; border: 1px solid #62f5dd66; border-radius: 24px; background: #0c1427f2; text-align: center; box-shadow: 0 20px 80px #0008; }
@@ -474,42 +476,137 @@
         this.scanStartedAt = 0;
         this.travelled = 0;
         this.lastPosition = null;
+        this.lastSampleAt = 0;
+        this.lastRadarDrawAt = 0;
+        this.cameraTrail = [];
         this.yawSectors = new Set();
         this.cameraPosition = new THREE.Vector3();
         this.forward = new THREE.Vector3();
         this.el.addEventListener('realityready', () => {
           this.scanStartedAt = performance.now();
+          roomRadarOrigin = roomCameraPose ? {...roomCameraPose} : null;
           if (this.dummy) this.dummy.setAttribute('visible', false);
           if (this.scanPanel) this.scanPanel.hidden = false;
-          if (this.status && currentLevel === 3) this.status.textContent = 'Медленно обойди комнату, чтобы AR закрепил поверхности.';
+          if (this.status && currentLevel === 3) this.status.textContent = 'Радар строится по координатам точек, найденных AR-трекером.';
         });
         this.el.addEventListener('realityerror', () => {
           if (this.status && currentLevel === 3) this.status.textContent = 'Не удалось запустить пространственный AR. Проверь доступ камеры в Safari и нажми назад.';
         });
         if (this.startButton) this.startButton.addEventListener('click', () => this.startDummy());
       },
-      tick() {
+      tick(time) {
         if (currentLevel !== 3 || this.placed || !this.scanStartedAt) return;
-        const camera = this.el.camera;
-        if (!camera) return;
-        camera.getWorldPosition(this.cameraPosition);
-        camera.getWorldDirection(this.forward);
-        const yaw = Math.atan2(this.forward.x, -this.forward.z);
-        this.yawSectors.add(Math.floor(((yaw + Math.PI) / (Math.PI * 2)) * 8) % 8);
-        if (this.lastPosition) this.travelled += Math.hypot(this.cameraPosition.x - this.lastPosition.x, this.cameraPosition.z - this.lastPosition.z);
-        this.lastPosition = this.cameraPosition.clone();
-        const elapsed = (performance.now() - this.scanStartedAt) / 1000;
-        const sectorProgress = Math.min(1, this.yawSectors.size / 7);
-        const travelProgress = Math.min(1, this.travelled / 1.6);
-        const pointsProgress = Math.min(1, roomWorldPointCount / 55);
-        const progress = Math.round((sectorProgress * 0.42 + travelProgress * 0.36 + pointsProgress * 0.22) * 100);
-        const ready = this.yawSectors.size >= 6 && this.travelled >= 1.2 && (roomWorldPointCount >= 24 || elapsed >= 22);
+        const pose = roomCameraPose;
+        if (!roomRadarOrigin && pose) roomRadarOrigin = {...pose};
+        if (pose) {
+          this.cameraPosition.set(pose.x, pose.y, pose.z);
+          this.yawSectors.add(Math.floor(((pose.yaw + Math.PI) / (Math.PI * 2)) * 8) % 8);
+          if (!this.lastPosition || time - this.lastSampleAt >= 180) {
+            if (!this.lastPosition) {
+              this.lastPosition = {x: pose.x, z: pose.z};
+            } else {
+              const step = Math.hypot(pose.x - this.lastPosition.x, pose.z - this.lastPosition.z);
+              if (step >= 0.035 && step < 0.8) {
+                this.travelled += step;
+                this.cameraTrail.push({x: pose.x, z: pose.z});
+                if (this.cameraTrail.length > 220) this.cameraTrail.shift();
+                this.lastPosition = {x: pose.x, z: pose.z};
+              } else if (step >= 0.8) {
+                this.lastPosition = {x: pose.x, z: pose.z};
+              }
+            }
+            this.lastSampleAt = time;
+          }
+        }
+        const points = Array.from(roomWorldPoints.values());
+        const cells = new Set();
+        let minX = Infinity; let maxX = -Infinity; let minZ = Infinity; let maxZ = -Infinity;
+        points.forEach((point) => {
+          minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+          minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
+          cells.add(`${Math.floor(point.x / 0.45)}:${Math.floor(point.z / 0.45)}`);
+        });
+        const spreadX = Number.isFinite(minX) ? maxX - minX : 0;
+        const spreadZ = Number.isFinite(minZ) ? maxZ - minZ : 0;
+        const pointProgress = Math.min(1, points.length / 45) * 0.48;
+        const areaProgress = Math.min(1, cells.size / 12) * 0.22;
+        const walkProgress = Math.min(1, this.travelled / 1.2) * 0.15;
+        const viewProgress = Math.min(1, this.yawSectors.size / 6) * 0.15;
+        const ready = points.length >= 30 && cells.size >= 8 && this.travelled >= 1.0 && this.yawSectors.size >= 5
+          && roomTrackingStatus === 'NORMAL' && spreadX >= 0.8 && spreadZ >= 0.8;
+        const progress = Math.min(95, Math.round((pointProgress + areaProgress + walkProgress + viewProgress) * 100));
         if (this.scanFill) this.scanFill.style.width = `${ready ? 100 : progress}%`;
         if (this.scanCopy) this.scanCopy.textContent = ready
-          ? 'Комната распознана. Закрепи манекен перед собой.'
-          : `Осмотрено ${this.yawSectors.size}/8 направлений · пройдено ${this.travelled.toFixed(1)} м · деталей среды ${roomWorldPointCount}`;
+          ? `Карта готова · ${points.length} точек · координаты X ${pose ? pose.x.toFixed(1) : '—'} м, Z ${pose ? pose.z.toFixed(1) : '—'} м`
+          : pose
+            ? `X ${pose.x.toFixed(2)} м · Z ${pose.z.toFixed(2)} м · точек ${points.length} · зон ${cells.size} · путь ${this.travelled.toFixed(1)} м · обзор ${this.yawSectors.size}/6 · трекинг ${roomTrackingStatus}`
+            : 'Жду реальные координаты камеры и карты трекинга…';
+        if (time - this.lastRadarDrawAt > 90) {
+          this.drawRadar(points, pose);
+          this.lastRadarDrawAt = time;
+        }
         if (this.startButton) this.startButton.disabled = !ready;
-        if (ready && this.status) this.status.textContent = 'Комната распознана. Нажми кнопку, чтобы поставить манекен в AR.';
+        if (ready && this.status) this.status.textContent = 'Карта комнаты построена. Нажми кнопку, чтобы поставить манекен в AR.';
+      },
+      drawRadar(points, pose) {
+        const canvas = document.querySelector('#room-radar');
+        const origin = roomRadarOrigin;
+        if (!canvas) return;
+        const cssSize = Math.max(160, Math.min(240, canvas.getBoundingClientRect().width || 224));
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        if (canvas.width !== Math.round(cssSize * ratio) || canvas.height !== Math.round(cssSize * ratio)) {
+          canvas.width = Math.round(cssSize * ratio);
+          canvas.height = Math.round(cssSize * ratio);
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.clearRect(0, 0, cssSize, cssSize);
+        ctx.fillStyle = '#07111e';
+        ctx.fillRect(0, 0, cssSize, cssSize);
+        const half = cssSize / 2;
+        let range = 3;
+        if (origin) points.forEach((point) => {
+          range = Math.max(range, Math.abs(point.x - origin.x) + 0.35, Math.abs(point.z - origin.z) + 0.35);
+        });
+        if (pose && origin) range = Math.max(range, Math.abs(pose.x - origin.x) + 0.4, Math.abs(pose.z - origin.z) + 0.4);
+        range = Math.min(6, Math.ceil(range * 2) / 2);
+        const scale = (cssSize - 28) / (range * 2);
+        const screen = (x, z) => ({x: half + (x - (origin ? origin.x : 0)) * scale, y: half + (z - (origin ? origin.z : 0)) * scale});
+        ctx.lineWidth = 1;
+        for (let meter = -range; meter <= range + 0.001; meter += 0.5) {
+          const p = half + meter * scale;
+          ctx.strokeStyle = Math.abs(meter % 1) < 0.01 ? '#62f5dd2e' : '#ffffff10';
+          ctx.beginPath(); ctx.moveTo(p, 12); ctx.lineTo(p, cssSize - 12); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(12, p); ctx.lineTo(cssSize - 12, p); ctx.stroke();
+          if (Math.abs(meter % 1) < 0.01) {
+            ctx.fillStyle = '#91a2c2'; ctx.font = '8px monospace';
+            ctx.fillText(meter.toFixed(0), p - 3, cssSize - 3);
+            ctx.fillText(meter.toFixed(0), 2, p + 3);
+          }
+        }
+        if (this.cameraTrail.length > 1) {
+          ctx.strokeStyle = '#a98aff99'; ctx.lineWidth = 2; ctx.beginPath();
+          this.cameraTrail.forEach((point, index) => {
+            const p = screen(point.x, point.z);
+            if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+          });
+          ctx.stroke();
+        }
+        points.forEach((point) => {
+          const p = screen(point.x, point.z);
+          if (p.x < 12 || p.x > cssSize - 12 || p.y < 12 || p.y > cssSize - 12) return;
+          ctx.fillStyle = point.y < (origin ? origin.y + 0.45 : 0.45) ? '#62f5dd' : point.y < (origin ? origin.y + 1.6 : 1.6) ? '#a98aff' : '#ff76c8';
+          ctx.globalAlpha = 0.45 + Math.min(0.5, point.confidence * 0.5);
+          ctx.beginPath(); ctx.arc(p.x, p.y, 1.4 + point.confidence * 1.1, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        if (pose) {
+          const p = screen(pose.x, pose.z);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(pose.yaw);
+          ctx.fillStyle = '#fff'; ctx.strokeStyle = '#62f5dd'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 7); ctx.lineTo(0, 4); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+        }
+        ctx.fillStyle = '#9eacc7'; ctx.font = '9px system-ui'; ctx.fillText('X →', cssSize - 34, cssSize - 5); ctx.fillText('Z ↓', 5, cssSize - 5);
       },
       startDummy() {
         if (currentLevel !== 3 || this.placed || !this.startButton || this.startButton.disabled) return;
@@ -542,21 +639,14 @@
     let handImageData = null;
     let handCutoutCanvas = null;
     let handMaskCanvas = null;
-    let roomWorldPointCount = 0;
+    let roomWorldPoints = new Map();
+    let roomCameraPose = null;
+    let roomRadarOrigin = null;
+    let roomTrackingStatus = 'INITIALIZING';
     let handTracks = new Map();
     let visualHandTracks = new Map();
     let dummyHp = 100;
     let lastPunchAt = 0;
-
-    const countWorldPoints = (value) => {
-      if (!value) return 0;
-      if (Array.isArray(value)) return value.length;
-      if (ArrayBuffer.isView(value)) return Math.floor(value.length / 3);
-      if (Array.isArray(value.points)) return value.points.length;
-      if (ArrayBuffer.isView(value.points)) return Math.floor(value.points.length / 3);
-      if (Number.isFinite(value.length)) return Math.floor(value.length / 3);
-      return 0;
-    };
 
     const ensureHandCameraPipeline = () => {
       if (handCameraPipelineReady) return true;
@@ -599,7 +689,34 @@
         onUpdate: ({processCpuResult}) => {
           if (currentLevel !== 3) return;
           const reality = processCpuResult && processCpuResult.reality;
-          roomWorldPointCount = countWorldPoints(reality && reality.worldPoints);
+          if (!reality) return;
+          const position = reality.position;
+          const rotation = reality.rotation;
+          if (position && rotation) {
+            const quaternion = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion);
+            roomCameraPose = {
+              x: position.x,
+              y: position.y,
+              z: position.z,
+              yaw: Math.atan2(forward.x, -forward.z),
+            };
+          }
+          roomTrackingStatus = reality.trackingStatus || roomTrackingStatus;
+          const points = Array.isArray(reality.worldPoints) ? reality.worldPoints : [];
+          points.forEach((point) => {
+            if (!point || !point.position || (Number.isFinite(point.confidence) && point.confidence < 0.1)) return;
+            const {x, y, z} = point.position;
+            if (![x, y, z].every(Number.isFinite)) return;
+            const key = point.id !== undefined && point.id !== null
+              ? String(point.id)
+              : `${Math.round(x * 10)}:${Math.round(y * 10)}:${Math.round(z * 10)}`;
+            roomWorldPoints.set(key, {x, y, z, confidence: Number.isFinite(point.confidence) ? point.confidence : 0.5});
+          });
+          if (roomWorldPoints.size > 900) {
+            const keep = Array.from(roomWorldPoints.entries()).slice(-700);
+            roomWorldPoints = new Map(keep);
+          }
         },
       });
       handCameraPipelineReady = true;
@@ -1190,6 +1307,10 @@
       document.querySelector('#sparring-complete').hidden = true;
       if (level === 3) {
         dummyHp = 100;
+        roomWorldPoints.clear();
+        roomCameraPose = null;
+        roomRadarOrigin = null;
+        roomTrackingStatus = 'INITIALIZING';
         document.querySelector('#dummy-hp-fill').style.width = '100%';
         document.querySelector('#dummy-hp-text').textContent = '100 / 100 HP';
       } else {
@@ -1372,7 +1493,9 @@
     <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div></div>
     <div id="room-scan-panel" hidden>
       <strong>Сканирование комнаты</strong>
-      <span id="room-scan-copy">Наведи камеру на стены и пол, затем медленно обойди комнату.</span>
+      <span id="room-scan-copy">Жду реальные координаты камеры и карты трекинга…</span>
+      <canvas id="room-radar" width="224" height="224" aria-label="Карта комнаты из пространственных точек AR-трекинга"></canvas>
+      <span id="room-radar-legend">Цветные точки — найденные координаты комнаты · стрелка — положение и направление телефона</span>
       <div id="room-scan-track"><span id="room-scan-fill"></span></div>
       <button id="start-dummy" type="button" disabled>Включить манекен</button>
     </div>
