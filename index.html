@@ -61,6 +61,8 @@
     #hands-video { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .hand-shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
     #hand-boxes { position: absolute; z-index: 3; inset: 0; overflow: hidden; pointer-events: none; }
+    #hand-lines { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #hand-screen.tracked-combat #hand-boxes { display: none; }
     .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 35%; background: #ff25452b; box-shadow: 0 0 14px #ff254540, inset 0 0 10px #ff25451f; }
     #sparring-scene { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: auto; }
     #sparring-scene .a-canvas { z-index: 0 !important; pointer-events: auto; }
@@ -383,17 +385,27 @@
       },
       tick(time, timeDelta) {
         if (!this.body || !this.body.object3D) return;
-        let remaining = Math.min((timeDelta || 16) / 1000, 0.08);
-        const stiffness = 27;
-        const damping = 6.4;
-        while (remaining > 0) {
-          const dt = Math.min(remaining, 1 / 120);
-          this.velocityX += ((this.targetX - this.angleX) * stiffness - this.velocityX * damping) * dt;
-          this.velocityZ += ((this.targetZ - this.angleZ) * stiffness - this.velocityZ * damping) * dt;
-          this.angleX = THREE.MathUtils.clamp(this.angleX + this.velocityX * dt, -0.46, 0.46);
-          this.angleZ = THREE.MathUtils.clamp(this.angleZ + this.velocityZ * dt, -0.48, 0.48);
-          remaining -= dt;
-        }
+        const dt = Math.min((timeDelta || 16) / 1000, 0.12);
+        const omega = 8.5;
+        const dampingRatio = 0.72;
+        const dampedOmega = omega * Math.sqrt(1 - dampingRatio * dampingRatio);
+        const decay = Math.exp(-dampingRatio * omega * dt);
+        const stepSpring = (angle, velocity, target) => {
+          const offset = angle - target;
+          const sineTerm = (velocity + dampingRatio * omega * offset) / dampedOmega;
+          const cosine = Math.cos(dampedOmega * dt);
+          const sine = Math.sin(dampedOmega * dt);
+          const wave = offset * cosine + sineTerm * sine;
+          const nextOffset = decay * wave;
+          const nextVelocity = decay * (
+            -dampingRatio * omega * wave + dampedOmega * (-offset * sine + sineTerm * cosine)
+          );
+          return [target + nextOffset, nextVelocity];
+        };
+        [this.angleX, this.velocityX] = stepSpring(this.angleX, this.velocityX, this.targetX);
+        [this.angleZ, this.velocityZ] = stepSpring(this.angleZ, this.velocityZ, this.targetZ);
+        this.angleX = THREE.MathUtils.clamp(this.angleX, -0.46, 0.46);
+        this.angleZ = THREE.MathUtils.clamp(this.angleZ, -0.48, 0.48);
         const body = this.body.object3D;
         body.rotation.x = this.angleX;
         body.rotation.z = this.angleZ;
@@ -631,6 +643,7 @@
         track.box.style.width = `${track.values.width}px`;
         track.box.style.height = `${track.values.height}px`;
       });
+      if (currentLevel === 3) drawTrackedHands(hands, metrics);
       visualHandTracks.forEach((track, key) => {
         if (!activeKeys.has(key)) {
           track.box.remove();
@@ -638,6 +651,87 @@
         }
       });
       return metrics;
+    };
+
+    const drawTrackedHands = (hands, metrics) => {
+      const canvas = document.querySelector('#hand-lines');
+      if (!canvas) return;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = metrics.viewportWidth;
+      const height = metrics.viewportHeight;
+      if (canvas.width !== Math.round(width * pixelRatio) || canvas.height !== Math.round(height * pixelRatio)) {
+        canvas.width = Math.round(width * pixelRatio);
+        canvas.height = Math.round(height * pixelRatio);
+      }
+      const context = canvas.getContext('2d');
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      const fingers = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]];
+      hands.forEach((landmarks) => {
+        const points = landmarks.map((point) => landmarkToScreen(point, metrics));
+        const palmSpan = Math.hypot(points[5].x - points[17].x, points[5].y - points[17].y);
+        if (!Number.isFinite(palmSpan) || palmSpan < 8) return;
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.fillStyle = 'rgba(255, 126, 145, 0.26)';
+        context.strokeStyle = 'rgba(255, 187, 194, 0.78)';
+        context.lineWidth = Math.max(3, palmSpan * 0.09);
+        context.beginPath();
+        [0, 1, 2, 5, 9, 13, 17].forEach((index, order) => {
+          const point = points[index];
+          if (order === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.closePath();
+        context.fill();
+        fingers.forEach((finger) => {
+          context.beginPath();
+          finger.forEach((index, order) => {
+            const point = points[index];
+            if (order === 0) context.moveTo(point.x, point.y);
+            else context.lineTo(point.x, point.y);
+          });
+          context.stroke();
+        });
+        context.beginPath();
+        [5, 9, 13, 17].forEach((index) => {
+          context.moveTo(points[0].x, points[0].y);
+          context.lineTo(points[index].x, points[index].y);
+        });
+        context.stroke();
+      });
+    };
+
+    const clearTrackedHands = () => {
+      const canvas = document.querySelector('#hand-lines');
+      if (!canvas) return;
+      const context = canvas.getContext('2d');
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const openMainRearCamera = async () => {
+      const baseVideo = {width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 60, max: 60}};
+      const initial = await navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {exact: 'environment'}, ...baseVideo}});
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const rearCameras = devices.filter((device) => device.kind === 'videoinput' && /back|rear|environment/i.test(device.label));
+      const mainCamera = rearCameras.find((device) => !/ultra.?wide|dual.?wide|telephoto|0[.,]5/i.test(device.label)) || rearCameras[0];
+      const initialTrack = initial.getVideoTracks()[0];
+      const initialSettings = initialTrack && initialTrack.getSettings ? initialTrack.getSettings() : {};
+      if (!mainCamera || !mainCamera.deviceId || mainCamera.deviceId === initialSettings.deviceId) return initial;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {deviceId: {exact: mainCamera.deviceId}, ...baseVideo}});
+      } catch (error) {
+        return initial;
+      }
+      initial.getTracks().forEach((track) => track.stop());
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track && track.getCapabilities ? track.getCapabilities() : {};
+      if (capabilities.zoom && capabilities.zoom.min <= 1 && capabilities.zoom.max >= 1 && track.applyConstraints) {
+        try { await track.applyConstraints({advanced: [{zoom: 1}]}); } catch (error) { /* Keep the main rear camera selected. */ }
+      }
+      return stream;
     };
 
     const showPunchDamage = (damage) => {
@@ -852,6 +946,7 @@
       const video = document.querySelector('#hands-video');
       if (video) video.srcObject = null;
       document.querySelector('#hand-boxes').replaceChildren();
+      clearTrackedHands();
     };
 
     const startHandLevel = async (level = 2) => {
@@ -883,10 +978,7 @@
         }
         document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру для рук…';
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
-        handStream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {facingMode: {exact: 'environment'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 60, max: 60}},
-        });
+        handStream = await openMainRearCamera();
         if (currentLevel !== level) {
           handStream.getTracks().forEach((track) => track.stop());
           handStream = null;
@@ -1056,6 +1148,7 @@
     <video id="hands-video" autoplay playsinline muted></video>
     <div class="hand-shade"></div>
     <div id="hand-boxes"></div>
+    <canvas id="hand-lines" aria-hidden="true"></canvas>
     <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div></div>
     <div id="dummy-hud" hidden>
       <div id="damage-pop"></div>
