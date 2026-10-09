@@ -966,7 +966,7 @@
       const world = scene && scene.components && scene.components['sparring-world'];
       document.querySelector('#hand-status').textContent = world && world.placed
         ? 'Касайся торса ладонью или бей быстрым замахом.'
-        : 'Комната отслеживается. Коснись пола там, где поставить грушу.';
+        : 'Обойди комнату для распознавания, затем включи манекен.';
       lastVideoTime = -1;
       if (handTask && !handFrame) handFrame = window.requestAnimationFrame(handDetectionFrame);
     };
@@ -1339,13 +1339,13 @@
       <p class="launch-copy">Выбери уровень: охота за кристаллами, проверка рук или тренировочный бой.</p>
       <div class="level-grid">
         <button id="level-one" class="level-card" type="button" disabled>
-          <span class="level-number">Уровень 1</span><strong>Поиск кристаллов</strong><small>Расставь кристаллы в комнате и собери их, подходя ближе.</small>
+          <span class="level-number">Уровень 1</span><strong>Поиск кристаллов</strong><small>Собирай кристаллы рукой, подойдя к ним близко.</small>
         </button>
         <button id="level-two" class="level-card secondary" type="button">
           <span class="level-number">Уровень 2</span><strong>Проверка рук</strong><small>Покажи руки камере — найденные руки обведутся полупрозрачным красным.</small>
         </button>
         <button id="level-three" class="level-card tertiary" type="button" disabled>
-          <span class="level-number">Уровень 3</span><strong>Тренировка с манекеном</strong><small>Коснись пола, чтобы поставить грушу в комнате. Быстрые удары качнут торс и снимут HP.</small>
+          <span class="level-number">Уровень 3</span><strong>Тренировка с манекеном</strong><small>Сначала обойди комнату и дождись распознавания. Затем включи манекен в AR.</small>
         </button>
       </div>
       <div id="launch-status">Подготавливаем AR-трекинг…</div>
