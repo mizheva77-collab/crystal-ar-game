@@ -503,8 +503,8 @@
         const travelProgress = Math.min(1, this.travelled / 1.6);
         const pointsProgress = Math.min(1, roomWorldPointCount / 55);
         const progress = Math.round((sectorProgress * 0.42 + travelProgress * 0.36 + pointsProgress * 0.22) * 100);
-        if (this.scanFill) this.scanFill.style.width = `${progress}%`;
         const ready = this.yawSectors.size >= 6 && this.travelled >= 1.2 && (roomWorldPointCount >= 24 || elapsed >= 22);
+        if (this.scanFill) this.scanFill.style.width = `${ready ? 100 : progress}%`;
         if (this.scanCopy) this.scanCopy.textContent = ready
           ? 'Комната распознана. Закрепи манекен перед собой.'
           : `Осмотрено ${this.yawSectors.size}/8 направлений · пройдено ${this.travelled.toFixed(1)} м · деталей среды ${roomWorldPointCount}`;
