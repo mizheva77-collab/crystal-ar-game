@@ -74,6 +74,7 @@
     .hand-bar { position: absolute; z-index: 5; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; }
     #hand-back { width: 42px; height: 42px; border: 1px solid #ffffff3b; border-radius: 14px; background: #10172be8; color: #fff; font-size: 20px; }
     .hand-title { color: white; font-size: 17px; font-weight: 800; text-shadow: 0 2px 10px #000; }
+    #hand-fps { margin-left: auto; padding: 7px 9px; border: 1px solid #ffffff35; border-radius: 11px; background: #10172bdc; color: #a8f8e9; font-size: 11px; font-weight: 800; }
     #hand-status { position: absolute; z-index: 5; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 15px; background: #0b1122e8; color: #fff; text-align: center; font-size: 13px; line-height: 1.4; pointer-events: none; }
     #dummy-hud { position: absolute; z-index: 4; top: max(72px, 12vh); left: 50%; transform: translateX(-50%); width: min(230px, calc(100% - 110px)); padding: 9px 13px; border: 1px solid #ffffff42; border-radius: 15px; background: #10172bdc; text-align: center; pointer-events: none; backdrop-filter: blur(8px); }
     #dummy-hud[hidden], #sparring-complete[hidden] { display: none; }
@@ -118,9 +119,20 @@
         this.wasTouching = false;
         this.hasPreviousCameraPosition = false;
       },
+      hit(directionX, directionZ, strength) {
+        const impulse = THREE.MathUtils.clamp(strength, 0, 3.2);
+        const direction = new THREE.Vector3(directionX, 0, directionZ);
+        if (direction.lengthSq() < 0.0001) direction.set(0, 0, 1);
+        direction.normalize();
+        this.velocity.x += direction.x * impulse;
+        this.velocity.z += direction.z * impulse;
+        this.angularVelocity.x += direction.z * impulse * 1.8;
+        this.angularVelocity.z -= direction.x * impulse * 1.8;
+        this.wasTouching = true;
+      },
       tick(time, timeDelta) {
-        if (currentLevel !== 1) return;
-        const camera = document.querySelector('#camera');
+        if (currentLevel !== 1 && currentLevel !== 2 && currentLevel !== 3) return;
+        const camera = document.querySelector('#sparring-camera') || document.querySelector('#camera');
         if (!camera || !camera.object3D) return;
         const dt = Math.min((timeDelta || 16) / 1000, 0.05);
         camera.object3D.getWorldPosition(this.cameraPosition);
@@ -180,6 +192,136 @@
       },
     });
 
+    AFRAME.registerComponent('axe-physics', {
+      init() {
+        this.velocity = new THREE.Vector3();
+        this.angularVelocity = new THREE.Vector3();
+        this.held = false;
+        this.groundY = 0.055;
+      },
+      pick(camera, localPosition) {
+        if (!camera || !camera.object3D || this.held) return;
+        camera.object3D.updateMatrixWorld(true);
+        camera.object3D.attach(this.el.object3D);
+        this.el.object3D.position.copy(localPosition);
+        this.el.object3D.rotation.set(0, 0, Math.PI / 2);
+        this.velocity.set(0, 0, 0);
+        this.angularVelocity.set(0, 0, 0);
+        this.held = true;
+      },
+      release(worldVelocity) {
+        if (!this.held) return;
+        const scene = this.el.sceneEl;
+        if (scene && scene.object3D) scene.object3D.attach(this.el.object3D);
+        this.held = false;
+        this.velocity.copy(worldVelocity);
+        const speed = this.velocity.length();
+        if (speed > 7.5) this.velocity.multiplyScalar(7.5 / speed);
+        this.angularVelocity.set(worldVelocity.z * 0.65, worldVelocity.y * 0.5, -worldVelocity.x * 0.8);
+      },
+      tick(time, timeDelta) {
+        if (this.held) return;
+        const dt = Math.min((timeDelta || 16) / 1000, 0.05);
+        const object = this.el.object3D;
+        if (object.position.y > this.groundY || this.velocity.y > 0) this.velocity.y -= 9.81 * dt;
+        object.position.addScaledVector(this.velocity, dt);
+        object.rotation.x += this.angularVelocity.x * dt;
+        object.rotation.y += this.angularVelocity.y * dt;
+        object.rotation.z += this.angularVelocity.z * dt;
+        if (object.position.y < this.groundY) {
+          object.position.y = this.groundY;
+          if (this.velocity.y < -0.55) this.velocity.y = -this.velocity.y * 0.22;
+          else this.velocity.y = 0;
+          this.velocity.x *= 0.76;
+          this.velocity.z *= 0.76;
+          this.angularVelocity.multiplyScalar(0.88);
+        }
+        this.velocity.multiplyScalar(Math.exp(-0.16 * dt));
+        this.angularVelocity.multiplyScalar(Math.exp(-1.15 * dt));
+      },
+    });
+
+    const createFireAxe = (parent, position) => {
+      const axe = document.createElement('a-entity');
+      axe.classList.add('fire-axe');
+      axe.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
+      axe.dataset.homePosition = `${position.x} ${position.y} ${position.z}`;
+      axe.setAttribute('rotation', '0 0 0');
+      axe.setAttribute('shadow', 'cast: true; receive: false');
+      axe.setAttribute('axe-physics', '');
+      const part = (geometry, material, offset, rotation = '0 0 0', scale = '1 1 1') => {
+        const item = document.createElement('a-entity');
+        item.setAttribute('geometry', geometry);
+        item.setAttribute('material', material);
+        item.setAttribute('position', offset);
+        item.setAttribute('rotation', rotation);
+        item.setAttribute('scale', scale);
+        axe.appendChild(item);
+      };
+      part('primitive: cylinder; radius: 0.038; height: 0.86; segmentsRadial: 8', 'color: #94613d; metalness: 0.06; roughness: 0.76', '0 0 0', '0 0 90');
+      part('primitive: cylinder; radius: 0.045; height: 0.18; segmentsRadial: 8', 'color: #d3a261; roughness: 0.5', '-0.30 0 0', '0 0 90');
+      part('primitive: box', 'color: #d7454e; emissive: #611820; emissiveIntensity: 0.08; metalness: 0.3; roughness: 0.36', '0.40 0 0', '0 0 0', '0.22 0.28 0.09');
+      part('primitive: box', 'color: #e75c58; metalness: 0.32; roughness: 0.28', '0.54 0.12 0', '0 0 -22', '0.22 0.075 0.095');
+      part('primitive: box', 'color: #e75c58; metalness: 0.32; roughness: 0.28', '0.54 -0.12 0', '0 0 22', '0.22 0.075 0.095');
+      part('primitive: box', 'color: #e9e5d7; metalness: 0.72; roughness: 0.24', '0.66 0 0', '0 0 0', '0.025 0.16 0.082');
+      parent.appendChild(axe);
+      return axe;
+    };
+
+    const resetFireAxe = (axe) => {
+      if (!axe || !axe.object3D) return;
+      const physics = axe.components && axe.components['axe-physics'];
+      if (physics && physics.held) physics.release(new THREE.Vector3());
+      if (axe.sceneEl && axe.sceneEl.object3D) axe.sceneEl.object3D.attach(axe.object3D);
+      const home = (axe.dataset.homePosition || '0 0.055 -1.2').split(/\s+/).map(Number);
+      axe.object3D.position.set(home[0] || 0, Number.isFinite(home[1]) ? home[1] : 0.055, Number.isFinite(home[2]) ? home[2] : -1.2);
+      axe.object3D.rotation.set(0, 0, 0);
+      axe.object3D.visible = true;
+      if (physics) {
+        physics.velocity.set(0, 0, 0);
+        physics.angularVelocity.set(0, 0, 0);
+        physics.held = false;
+      }
+    };
+
+    const createPracticePot = (parent, position) => {
+      const pot = document.createElement('a-entity');
+      pot.classList.add('flower-pot');
+      pot.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
+      pot.setAttribute('pot-bump', 'radius: 0.4');
+      pot.setAttribute('shadow', 'cast: true; receive: false');
+      const add = (geometry, material, offset, rotation = '0 0 0', scale = '1 1 1') => {
+        const item = document.createElement('a-entity');
+        item.setAttribute('geometry', geometry);
+        item.setAttribute('material', material);
+        item.setAttribute('position', offset);
+        item.setAttribute('rotation', rotation);
+        item.setAttribute('scale', scale);
+        pot.appendChild(item);
+      };
+      add('primitive: cone; radiusBottom: 0.19; radiusTop: 0.14; height: 0.29; segmentsRadial: 9', 'color: #5946a5; metalness: 0.22; roughness: 0.45', '0 0.15 0');
+      add('primitive: cylinder; radius: 0.21; height: 0.045; segmentsRadial: 9', 'color: #62f5dd; metalness: 0.32; roughness: 0.3', '0 0.31 0');
+      add('primitive: cylinder; radius: 0.17; height: 0.015; segmentsRadial: 9', 'color: #28233d; roughness: 0.9', '0 0.325 0');
+      [-0.07, 0.02, 0.09].forEach((x, index) => {
+        const color = ['#62f5dd', '#ff76c8', '#a98aff'][index];
+        add('primitive: cylinder; radius: 0.012; height: 0.36; segmentsRadial: 6', 'color: #5de0bd; roughness: 0.5', `${x} 0.52 0`, `0 0 ${index * 9 - 8}`);
+        for (let petal = 0; petal < 5; petal += 1) {
+          const angle = petal * Math.PI * 2 / 5;
+          add('primitive: octahedron; radius: 0.075', `color: ${color}; emissive: ${color}; emissiveIntensity: 0.22; roughness: 0.28`, `${x + Math.cos(angle) * 0.08} 0.72 ${Math.sin(angle) * 0.07}`, '0 0 0', '0.85 1.25 0.65');
+        }
+        add('primitive: icosahedron; radius: 0.05', 'color: #fff0b0; emissive: #ffd36a; emissiveIntensity: 0.55', `${x} 0.72 0`);
+      });
+      parent.appendChild(pot);
+      return pot;
+    };
+
+    const addPracticeProps = (scene, center) => {
+      if (!scene || !scene.object3D || scene.querySelector('.fire-axe')) return;
+      const game = scene.components && scene.components['crystal-hunt'];
+      if (game && !game.pot) game.createPot(center);
+      createFireAxe(scene, new THREE.Vector3(center.x - 0.56, 0.055, center.z + 0.18));
+    };
+
     AFRAME.registerComponent('crystal-hunt', {
       init() {
         this.crystals = [];
@@ -190,6 +332,7 @@
         this.resetButton = document.querySelector('#reset');
         this.fpsLabel = document.querySelector('#fps');
         this.pot = null;
+        this.axe = null;
         this.cameraPosition = new THREE.Vector3();
         this.crystalPosition = new THREE.Vector3();
         this.fpsFrames = 0;
@@ -228,8 +371,11 @@
       },
 
       spawnField(origin) {
+        heldAxe = null;
+        propHandTracks.clear();
         this.crystals.forEach((crystal) => crystal.remove());
         if (this.pot) this.pot.remove();
+        if (this.axe) this.axe.remove();
         this.crystals = [];
         this.collected = 0;
         this.started = true;
@@ -252,6 +398,7 @@
           this.crystals.push(crystal);
         });
         this.createPot(center);
+        this.axe = createFireAxe(this.el, new THREE.Vector3(center.x + 0.58, 0.055, center.z + 0.18));
       this.status.textContent = 'Подойди к кристаллу и коснись его рукой, чтобы забрать.';
       },
 
@@ -488,6 +635,12 @@
           if (this.dummy) this.dummy.setAttribute('visible', false);
           if (this.scanPanel) this.scanPanel.hidden = false;
           if (this.status && currentLevel === 3) this.status.textContent = 'Радар строится по координатам точек, найденных AR-трекером.';
+          const pose = roomCameraPose;
+          const heading = pose ? pose.yaw : 0;
+          const floorX = (pose ? pose.x : 0) + Math.sin(heading) * 1.25;
+          const floorZ = (pose ? pose.z : 0) - Math.cos(heading) * 1.25;
+          this.practicePot = createPracticePot(this.el, new THREE.Vector3(floorX + 0.34, 0.16, floorZ));
+          this.practiceAxe = createFireAxe(this.el, new THREE.Vector3(floorX - 0.32, 0.055, floorZ + 0.12));
         });
         this.el.addEventListener('realityerror', () => {
           if (this.status && currentLevel === 3) this.status.textContent = 'Не удалось запустить пространственный AR. Проверь доступ камеры в Safari и нажми назад.';
@@ -631,8 +784,15 @@
     let coachingAdded = false;
     let handStream = null;
     let handTask = null;
+    let poseTask = null;
+    let visionFiles = null;
     let handFrame = 0;
     let lastHandInference = 0;
+    let displayFpsAt = 0;
+    let displayFpsFrames = 0;
+    let lastPoseInference = 0;
+    let latestPoseLandmarks = null;
+    let latestPoseTime = 0;
     let lastVideoTime = -1;
     let handCameraFrame = 0;
     let handCameraPipelineReady = false;
@@ -643,8 +803,11 @@
     let roomCameraPose = null;
     let roomRadarOrigin = null;
     let roomTrackingStatus = 'INITIALIZING';
+    let level2ArMode = false;
     let handTracks = new Map();
+    let propHandTracks = new Map();
     let visualHandTracks = new Map();
+    let heldAxe = null;
     let dummyHp = 100;
     let lastPunchAt = 0;
 
@@ -655,7 +818,7 @@
       XR8.addCameraPipelineModule({
         name: 'crystal-ar-hand-camera-source',
         onProcessCpu: ({processGpuResult}) => {
-          if (currentLevel !== 1 && currentLevel !== 3) return;
+          if (currentLevel !== 1 && currentLevel !== 2 && currentLevel !== 3) return;
           const frame = processGpuResult && processGpuResult.camerapixelarray;
           const canvas = document.querySelector('#hand-source');
           if (!frame || !frame.pixels || !frame.cols || !frame.rows || !canvas) return;
@@ -726,7 +889,7 @@
     const loadHandLandmarker = async () => {
       if (handTask) return handTask;
       const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
-      const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
+      visionFiles = visionFiles || await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
       const taskOptions = {
         baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'GPU'},
         runningMode: 'VIDEO',
@@ -736,12 +899,34 @@
         minTrackingConfidence: 0.32,
       };
       try {
-        handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+        handTask = await vision.HandLandmarker.createFromOptions(visionFiles, taskOptions);
       } catch (gpuError) {
         taskOptions.baseOptions.delegate = 'CPU';
-        handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+        handTask = await vision.HandLandmarker.createFromOptions(visionFiles, taskOptions);
       }
       return handTask;
+    };
+
+    const loadPoseLandmarker = async () => {
+      if (poseTask) return poseTask;
+      const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
+      visionFiles = visionFiles || await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
+      const options = {
+        baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task', delegate: 'GPU'},
+        runningMode: 'VIDEO',
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.42,
+        minPosePresenceConfidence: 0.38,
+        minTrackingConfidence: 0.38,
+        outputSegmentationMasks: false,
+      };
+      try {
+        poseTask = await vision.PoseLandmarker.createFromOptions(visionFiles, options);
+      } catch (gpuError) {
+        options.baseOptions.delegate = 'CPU';
+        poseTask = await vision.PoseLandmarker.createFromOptions(visionFiles, options);
+      }
+      return poseTask;
     };
 
     const prepareStartButton = () => {
@@ -763,6 +948,7 @@
     const startSharedHandTracking = async (level) => {
       if (!ensureHandCameraPipeline()) throw new Error('Камера AR недоступна для распознавания рук');
       await loadHandLandmarker();
+      if (level === 1) await loadPoseLandmarker().catch(() => null);
       if (currentLevel !== level) return;
       lastVideoTime = -1;
       lastHandInference = 0;
@@ -864,6 +1050,113 @@
       };
     };
 
+    const handGesture = (landmarks) => {
+      const wrist = landmarks[0];
+      const pairs = [[8,6],[12,10],[16,14],[20,18]];
+      const curled = pairs.filter(([tip, joint]) => {
+        const tipDistance = Math.hypot(landmarks[tip].x - wrist.x, landmarks[tip].y - wrist.y);
+        const jointDistance = Math.hypot(landmarks[joint].x - wrist.x, landmarks[joint].y - wrist.y);
+        return tipDistance < jointDistance * 1.08;
+      }).length;
+      const extended = pairs.filter(([tip, joint]) => {
+        const tipDistance = Math.hypot(landmarks[tip].x - wrist.x, landmarks[tip].y - wrist.y);
+        const jointDistance = Math.hypot(landmarks[joint].x - wrist.x, landmarks[joint].y - wrist.y);
+        return tipDistance > jointDistance * 1.24;
+      }).length;
+      const palmWidth = Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y);
+      const thumbClosed = Math.hypot(landmarks[4].x - landmarks[5].x, landmarks[4].y - landmarks[5].y) < palmWidth * 0.95;
+      return {fist: curled >= 3 && thumbClosed, open: extended >= 3};
+    };
+
+    const updateHandHeldProps = (result, hands, metrics, source, now) => {
+      if (currentLevel < 1 || currentLevel > 3 || !hands.length || !source || !source.width) return;
+      const scene = document.querySelector('#sparring-scene') || document.querySelector('a-scene[crystal-hunt]');
+      const cameraEntity = scene && scene.querySelector('a-camera');
+      const camera = scene && scene.camera;
+      const cameraObject = cameraEntity && cameraEntity.object3D;
+      if (!scene || !camera || !cameraEntity || !cameraObject) return;
+      camera.updateMatrixWorld(true);
+      cameraObject.updateMatrixWorld(true);
+      const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
+      const cameraRotation = camera.getWorldQuaternion(new THREE.Quaternion());
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraRotation);
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraRotation);
+      const axe = scene.querySelector('.fire-axe');
+      const axePhysics = axe && axe.components && axe.components['axe-physics'];
+      const pot = scene.querySelector('.flower-pot');
+      const potPhysics = pot && pot.components && pot.components['pot-bump'];
+      const nextTracks = new Map();
+      let selected = null;
+      hands.forEach((landmarks, index) => {
+        const handedness = result.handedness && result.handedness[index] && result.handedness[index][0];
+        const key = handedness ? handedness.categoryName : `hand-${index}`;
+        const center = palmCenter(landmarks, metrics);
+        const palmPixels = Math.hypot((landmarks[5].x - landmarks[17].x) * source.width, (landmarks[5].y - landmarks[17].y) * source.height);
+        const focalPixels = source.width / (2 * Math.tan(63 * Math.PI / 360));
+        const depth = palmPixels > 1 ? THREE.MathUtils.clamp(0.075 * focalPixels / palmPixels, 0.18, 4) : 2;
+        const previous = propHandTracks.get(key);
+        const dt = previous ? Math.max(0.02, Math.min(0.16, (now - previous.time) / 1000)) : 0.04;
+        const vx = previous ? (center.x - previous.x) / dt : 0;
+        const vy = previous ? (center.y - previous.y) / dt : 0;
+        const depthSpeed = previous ? (previous.depth - depth) / dt : 0;
+        const speed = Math.hypot(vx, vy, depthSpeed * 250);
+        const gesture = handGesture(landmarks);
+        nextTracks.set(key, {x: center.x, y: center.y, depth, time: now, hitAt: previous ? previous.hitAt : 0});
+        if (!selected || (heldAxe && heldAxe.key === key)) selected = {key, center, depth, vx, vy, depthSpeed, speed, gesture};
+
+        const ndcX = center.x / metrics.viewportWidth * 2 - 1;
+        const ndcY = -(center.y / metrics.viewportHeight) * 2 + 1;
+        const rayPoint = new THREE.Vector3(ndcX, ndcY, 0.5).unproject(camera);
+        const rayDirection = rayPoint.sub(cameraPosition).normalize();
+        const heldWorldPosition = cameraPosition.clone().addScaledVector(rayDirection, depth);
+        const heldLocalPosition = cameraObject.worldToLocal(heldWorldPosition.clone());
+
+        if (heldAxe && heldAxe.key === key && axePhysics && axePhysics.held) {
+          if (gesture.fist) {
+            axe.object3D.position.copy(heldLocalPosition);
+            const wrist = landmarkToScreen(landmarks[0], metrics);
+            const middle = landmarkToScreen(landmarks[9], metrics);
+            axe.object3D.rotation.set(0, 0, Math.atan2(middle.y - wrist.y, middle.x - wrist.x));
+          } else if (gesture.open) {
+            const localVelocity = new THREE.Vector3(vx / 520, -vy / 520, -depthSpeed * 0.72);
+            if (localVelocity.lengthSq() < 0.08) localVelocity.set(0, 0, -0.9);
+            localVelocity.clampLength(0, 7.5).applyQuaternion(cameraRotation);
+            axePhysics.release(localVelocity);
+            heldAxe = null;
+          }
+        } else if (!heldAxe && axePhysics && !axePhysics.held && gesture.fist && axe.object3D.visible) {
+          axe.object3D.updateMatrixWorld(true);
+          const axeWorld = axe.object3D.getWorldPosition(new THREE.Vector3());
+          const axeNdc = axeWorld.clone().project(camera);
+          const axeScreen = {x: (axeNdc.x * 0.5 + 0.5) * metrics.viewportWidth, y: (-axeNdc.y * 0.5 + 0.5) * metrics.viewportHeight};
+          const axeDepth = cameraPosition.distanceTo(axeWorld);
+          const touchRadius = THREE.MathUtils.clamp(metrics.viewportWidth * 0.09 / Math.max(0.55, axeDepth), 36, metrics.viewportWidth * 0.18);
+          if (Math.hypot(axeScreen.x - center.x, axeScreen.y - center.y) < touchRadius && Math.abs(axeDepth - depth) < 0.85 && axeDepth < 2.6) {
+            axePhysics.pick(cameraEntity, heldLocalPosition);
+            heldAxe = {key};
+          }
+        }
+
+        if (!heldAxe && pot && potPhysics && speed > 240 && now - nextTracks.get(key).hitAt > 240) {
+          pot.object3D.updateMatrixWorld(true);
+          const potWorld = pot.object3D.getWorldPosition(new THREE.Vector3());
+          const potNdc = potWorld.clone().project(camera);
+          const potScreen = {x: (potNdc.x * 0.5 + 0.5) * metrics.viewportWidth, y: (-potNdc.y * 0.5 + 0.5) * metrics.viewportHeight};
+          const potDepth = cameraPosition.distanceTo(potWorld);
+          const contactRadius = THREE.MathUtils.clamp(metrics.viewportWidth * 0.085 / Math.max(0.5, potDepth), 28, metrics.viewportWidth * 0.14);
+          if (Math.hypot(potScreen.x - center.x, potScreen.y - center.y) < contactRadius && Math.abs(potDepth - depth) < 0.62) {
+            const horizontal = right.clone().multiplyScalar(vx).addScaledVector(forward, -vy * 0.35);
+            horizontal.y = 0;
+            if (horizontal.lengthSq() < 0.001) horizontal.set(potWorld.x - cameraPosition.x, 0, potWorld.z - cameraPosition.z);
+            horizontal.normalize();
+            potPhysics.hit(horizontal.x, horizontal.z, THREE.MathUtils.clamp((speed - 180) / 390, 0.35, 2.8));
+            nextTracks.get(key).hitAt = now;
+          }
+        }
+      });
+      propHandTracks = nextTracks;
+    };
+
     const positionHandBoxes = (hands, imageWidth, imageHeight, handedness = []) => {
       const overlay = document.querySelector('#hand-boxes');
       const metrics = getVideoMetrics(imageWidth, imageHeight);
@@ -914,7 +1207,7 @@
         track.box.style.width = `${track.values.width}px`;
         track.box.style.height = `${track.values.height}px`;
       });
-      if (currentLevel === 1 || currentLevel === 3) drawTrackedHands(hands, metrics);
+      if (currentLevel === 1 || currentLevel === 2 || currentLevel === 3) drawTrackedHands(hands, metrics);
       visualHandTracks.forEach((track, key) => {
         if (!activeKeys.has(key)) {
           track.box.remove();
@@ -928,7 +1221,7 @@
       const canvas = document.querySelector(currentLevel === 1 ? '#first-level-hands' : '#hand-lines');
       const source = document.querySelector('#hand-source');
       if (!canvas || !source || !source.width || !source.height) return;
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.25);
       const width = metrics.viewportWidth;
       const height = metrics.viewportHeight;
       if (canvas.width !== Math.round(width * pixelRatio) || canvas.height !== Math.round(height * pixelRatio)) {
@@ -948,41 +1241,49 @@
       });
       const cut = handCutoutCanvas.getContext('2d');
       const mask = handMaskCanvas.getContext('2d');
-      const scene = document.querySelector(currentLevel === 1 ? 'a-scene[crystal-hunt]' : '#sparring-scene');
-      const camera = scene && scene.camera;
+      mask.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      mask.clearRect(0, 0, width, height);
+      mask.fillStyle = '#fff';
+      mask.strokeStyle = '#fff';
+      mask.lineCap = 'round';
+      mask.lineJoin = 'round';
+
+      // Pose landmarks extend the foreground cutout from the wrist to the shoulder.
+      // A soft, tapered capsule mask keeps the real camera pixels while covering AR props.
+      if (latestPoseLandmarks && performance.now() - latestPoseTime < 280) {
+        const posePoints = latestPoseLandmarks.map((point) => landmarkToScreen(point, metrics));
+        const visibility = (index) => latestPoseLandmarks[index] && (latestPoseLandmarks[index].visibility ?? 1) > 0.35;
+        [[11,13,15],[12,14,16]].forEach(([shoulder, elbow, wrist]) => {
+          if (![shoulder, elbow, wrist].every(visibility)) return;
+          const upperLength = Math.hypot(posePoints[shoulder].x - posePoints[elbow].x, posePoints[shoulder].y - posePoints[elbow].y);
+          const foreLength = Math.hypot(posePoints[elbow].x - posePoints[wrist].x, posePoints[elbow].y - posePoints[wrist].y);
+          const upperWidth = THREE.MathUtils.clamp(upperLength * 0.48, 12, width * 0.09);
+          const foreWidth = THREE.MathUtils.clamp(foreLength * 0.36, 10, width * 0.075);
+          [[shoulder, elbow, upperWidth], [elbow, wrist, foreWidth]].forEach(([from, to, lineWidth]) => {
+            mask.beginPath();
+            mask.lineWidth = lineWidth;
+            mask.moveTo(posePoints[from].x, posePoints[from].y);
+            mask.lineTo(posePoints[to].x, posePoints[to].y);
+            mask.stroke();
+          });
+          [
+            [shoulder, upperWidth * 0.57],
+            [elbow, Math.max(upperWidth, foreWidth) * 0.52],
+            [wrist, foreWidth * 0.48],
+          ].forEach(([index, radius]) => {
+            mask.beginPath();
+            mask.arc(posePoints[index].x, posePoints[index].y, radius, 0, Math.PI * 2);
+            mask.fill();
+          });
+        });
+      }
+
+      const handConnections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
       hands.forEach((landmarks) => {
         const points = landmarks.map((point) => landmarkToScreen(point, metrics));
         const palmSpan = Math.hypot(points[5].x - points[17].x, points[5].y - points[17].y);
         if (!Number.isFinite(palmSpan) || palmSpan < 8) return;
         const palm = palmCenter(landmarks, metrics);
-        const spanPixels = Math.hypot((landmarks[5].x - landmarks[17].x) * source.width, (landmarks[5].y - landmarks[17].y) * source.height);
-        const handDepth = spanPixels > 1 ? 0.085 * source.width / (spanPixels * 2 * Math.tan(63 * Math.PI / 360)) : Infinity;
-        let hiddenByObject = false;
-        if (camera && scene) {
-          camera.updateMatrixWorld(true);
-          const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
-          scene.querySelectorAll(currentLevel === 1 ? '.crystal, .flower-pot' : '#bag-dummy').forEach((object) => {
-            if (hiddenByObject || !object.object3D || object.object3D.visible === false || object.dataset.collected === 'yes') return;
-            object.object3D.updateMatrixWorld(true);
-            const world = object.object3D.getWorldPosition(new THREE.Vector3());
-            const ndc = world.clone().project(camera);
-            const sx = (ndc.x * 0.5 + 0.5) * width;
-            const sy = (-ndc.y * 0.5 + 0.5) * height;
-            const distance = cameraPosition.distanceTo(world);
-            const radius = Math.max(20, width * 0.11 / Math.max(0.5, distance));
-            if (Math.hypot(sx - palm.x, sy - palm.y) < radius && distance + 0.12 < handDepth) hiddenByObject = true;
-          });
-        }
-        if (hiddenByObject) return;
-        cut.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        cut.clearRect(0, 0, width, height);
-        cut.drawImage(source, metrics.offsetX, metrics.offsetY, metrics.width, metrics.height);
-        mask.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        mask.clearRect(0, 0, width, height);
-        mask.fillStyle = '#fff';
-        mask.strokeStyle = '#fff';
-        mask.lineCap = 'round';
-        mask.lineJoin = 'round';
         mask.beginPath();
         [0, 5, 9, 13, 17].forEach((index, order) => order ? mask.lineTo(points[index].x, points[index].y) : mask.moveTo(points[index].x, points[index].y));
         mask.closePath();
@@ -996,14 +1297,21 @@
         mask.beginPath();
         mask.ellipse(palm.x, palm.y, palmSpan * 0.54, palmSpan * 0.63, 0, 0, Math.PI * 2);
         mask.fill();
-        cut.globalCompositeOperation = 'destination-in';
-        cut.drawImage(handMaskCanvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
-        cut.globalCompositeOperation = 'source-over';
-        context.drawImage(handCutoutCanvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
-        context.strokeStyle = 'rgba(255,190,196,.38)';
-        context.lineWidth = Math.max(1, palmSpan * 0.012);
-        context.lineCap = 'round';
-        [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]].forEach(([a,b]) => {
+      });
+
+      cut.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      cut.clearRect(0, 0, width, height);
+      cut.drawImage(source, metrics.offsetX, metrics.offsetY, metrics.width, metrics.height);
+      cut.globalCompositeOperation = 'destination-in';
+      cut.drawImage(handMaskCanvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
+      cut.globalCompositeOperation = 'source-over';
+      context.drawImage(handCutoutCanvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
+      context.strokeStyle = 'rgba(255,190,196,.32)';
+      context.lineWidth = 1.5;
+      context.lineCap = 'round';
+      hands.forEach((landmarks) => {
+        const points = landmarks.map((point) => landmarkToScreen(point, metrics));
+        handConnections.forEach(([a,b]) => {
           context.beginPath();
           context.moveTo(points[a].x, points[a].y);
           context.lineTo(points[b].x, points[b].y);
@@ -1081,6 +1389,7 @@
       }
       const scene = document.querySelector('#sparring-scene');
       const world = scene && scene.components && scene.components['sparring-world'];
+      resetFireAxe(scene && scene.querySelector('.fire-axe'));
       document.querySelector('#hand-status').textContent = world && world.placed
         ? 'Касайся торса ладонью или бей быстрым замахом.'
         : 'Обойди комнату для распознавания, затем включи манекен.';
@@ -1249,20 +1558,39 @@
       if ((currentLevel !== 1 && currentLevel !== 2 && currentLevel !== 3) || !handTask) return;
       if (currentLevel === 3 && dummyHp <= 0) { handFrame = 0; return; }
       const now = performance.now();
-      const source = currentLevel === 2 ? document.querySelector('#hands-video') : document.querySelector('#hand-source');
-      const imageWidth = currentLevel === 2 ? source.videoWidth : source.width;
-      const imageHeight = currentLevel === 2 ? source.videoHeight : source.height;
-      const frameStamp = currentLevel === 2 ? source.currentTime : handCameraFrame;
-      const ready = currentLevel === 2 ? source.readyState >= 2 : imageWidth > 0 && imageHeight > 0;
+      displayFpsFrames += 1;
+      if (!displayFpsAt) displayFpsAt = now;
+      if (now - displayFpsAt >= 1000) {
+        const fps = Math.round(displayFpsFrames * 1000 / (now - displayFpsAt));
+        const counter = document.querySelector('#hand-fps');
+        if (counter && currentLevel !== 1) counter.textContent = `${fps} FPS`;
+        displayFpsFrames = 0;
+        displayFpsAt = now;
+      }
+      const source = currentLevel === 2 && !level2ArMode ? document.querySelector('#hands-video') : document.querySelector('#hand-source');
+      const imageWidth = currentLevel === 2 && !level2ArMode ? source.videoWidth : source.width;
+      const imageHeight = currentLevel === 2 && !level2ArMode ? source.videoHeight : source.height;
+      const frameStamp = currentLevel === 2 && !level2ArMode ? source.currentTime : handCameraFrame;
+      const ready = currentLevel === 2 && !level2ArMode ? source.readyState >= 2 : imageWidth > 0 && imageHeight > 0;
       if (now - lastHandInference >= 28 && ready && imageWidth && imageHeight && frameStamp !== lastVideoTime) {
         lastHandInference = now;
         lastVideoTime = frameStamp;
         try {
+          if ((currentLevel !== 2 || level2ArMode) && poseTask && now - lastPoseInference >= 105) {
+            lastPoseInference = now;
+            const poseResult = poseTask.detectForVideo(source, now);
+            latestPoseLandmarks = poseResult.landmarks && poseResult.landmarks[0] || null;
+            latestPoseTime = now;
+          }
           const result = handTask.detectForVideo(source, now);
           const hands = result.landmarks || [];
           const metrics = positionHandBoxes(hands, imageWidth, imageHeight, result.handedness || []);
+          updateHandHeldProps(result, hands, metrics, source, now);
           if (currentLevel === 3) updateSparringHands(result, hands, metrics, now);
           else if (currentLevel === 1) checkCrystalHandContacts(hands, metrics, source);
+          else if (currentLevel === 2 && level2ArMode) document.querySelector('#hand-status').textContent = hands.length
+            ? 'Руки отслеживаются. Сожми кулак рядом с топором, чтобы поднять его.'
+            : 'Покажи руку и дай камере увидеть плечо и локоть.';
           else document.querySelector('#hand-status').textContent = hands.length
             ? `Рук в кадре: ${hands.length} · рамка внутри ладони`
             : 'Модель готова — покажи руку в кадре';
@@ -1283,6 +1611,19 @@
         try { handTask.close(); } catch (error) { /* Continue releasing the camera if the model already stopped. */ }
       }
       handTask = null;
+      const held = document.querySelector('.fire-axe');
+      const physics = held && held.components && held.components['axe-physics'];
+      if (physics && physics.held) physics.release(new THREE.Vector3());
+      heldAxe = null;
+      if (poseTask) {
+        try { poseTask.close(); } catch (error) { /* The pose model is optional on devices that cannot load it. */ }
+      }
+      poseTask = null;
+      displayFpsAt = 0;
+      displayFpsFrames = 0;
+      latestPoseLandmarks = null;
+      latestPoseTime = 0;
+      propHandTracks.clear();
       if (handStream) handStream.getTracks().forEach((track) => track.stop());
       handStream = null;
       visualHandTracks.forEach((track) => track.box.remove());
@@ -1300,11 +1641,13 @@
       document.querySelector('#launch-screen').hidden = true;
       const handScreen = document.querySelector('#hand-screen');
       handScreen.hidden = false;
-      handScreen.classList.toggle('tracked-combat', level === 3);
+      level2ArMode = level === 2;
+      handScreen.classList.toggle('tracked-combat', level === 3 || level2ArMode);
       setGameUi(false);
       document.querySelector('.hand-title').textContent = level === 3 ? 'Уровень 3 · Тренировка' : 'Уровень 2 · Проверка рук';
       document.querySelector('#dummy-hud').hidden = true;
       document.querySelector('#sparring-complete').hidden = true;
+      document.querySelector('#room-scan-panel').hidden = level !== 3;
       if (level === 3) {
         dummyHp = 100;
         roomWorldPoints.clear();
@@ -1313,14 +1656,15 @@
         roomTrackingStatus = 'INITIALIZING';
         document.querySelector('#dummy-hp-fill').style.width = '100%';
         document.querySelector('#dummy-hp-text').textContent = '100 / 100 HP';
-      } else {
+      } else if (level === 2) {
         const previousScene = document.querySelector('#sparring-scene');
         if (previousScene) previousScene.remove();
+        resetFireAxe(document.querySelector('a-scene[crystal-hunt] .fire-axe'));
       }
       releaseHandResources();
       handTracks.clear();
       try {
-        if (level === 3 && !window.XR8) throw new Error('AR tracking is still loading');
+        if ((level === 2 || level === 3) && !window.XR8) throw new Error('AR tracking is still loading');
         if (level === 3) {
           document.querySelector('#hand-status').textContent = 'Запускаю AR-камеру и сканирование комнаты…';
           document.querySelector('#room-scan-panel').hidden = false;
@@ -1329,7 +1673,23 @@
           await mountSparringScene();
           if (currentLevel !== 3) return;
           await loadHandLandmarker();
+          await loadPoseLandmarker().catch(() => null);
           document.querySelector('#hand-status').textContent = 'Одна основная камера AR включена. Медленно обойди комнату.';
+        } else if (level === 2) {
+          document.querySelector('#hand-status').textContent = 'Запускаю AR-камеру и реальные предметы комнаты…';
+          if (!mountARScene()) throw new Error('AR tracking is unavailable');
+          await startSharedHandTracking(2);
+          await loadPoseLandmarker().catch(() => null);
+          const scene = document.querySelector('a-scene[crystal-hunt]');
+          const spawn = () => {
+            if (currentLevel !== 2 || !scene) return;
+            const game = scene.components && scene.components['crystal-hunt'];
+            if (!game) { window.setTimeout(spawn, 80); return; }
+            addPracticeProps(scene, game.getCenterAhead());
+          };
+          if (scene && scene.hasLoaded) spawn();
+          else if (scene) scene.addEventListener('loaded', spawn, {once: true});
+          document.querySelector('#hand-status').textContent = 'AR включена. Сожми кулак рядом с топором, чтобы поднять его.';
         } else {
           document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру для рук…';
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
@@ -1344,6 +1704,7 @@
           await video.play();
           document.querySelector('#hand-status').textContent = 'Основная камера включена. Загружаю распознавание рук…';
           await loadHandLandmarker();
+          await loadPoseLandmarker().catch(() => null);
         }
         if (currentLevel !== level) {
           releaseHandResources();
@@ -1371,33 +1732,35 @@
       const layer = document.querySelector('#settings-layer');
       layer.classList.remove('open');
       window.setTimeout(() => { layer.hidden = true; }, 290);
-      if (resume && currentLevel === 1 && window.XR8 && XR8.isPaused && XR8.isPaused()) XR8.resume();
+      if (resume && (currentLevel === 1 || currentLevel === 2) && window.XR8 && XR8.isPaused && XR8.isPaused()) XR8.resume();
     };
 
     const openSettings = () => {
       const layer = document.querySelector('#settings-layer');
       layer.hidden = false;
       requestAnimationFrame(() => layer.classList.add('open'));
-      if (currentLevel === 1 && window.XR8 && !XR8.isPaused()) XR8.pause();
+      if ((currentLevel === 1 || currentLevel === 2) && window.XR8 && !XR8.isPaused()) XR8.pause();
     };
 
     const returnToMenu = () => {
       hideSettings(false);
       if (currentLevel === 1 || currentLevel === 2 || currentLevel === 3) releaseHandResources();
       const sparringScene = document.querySelector('#sparring-scene');
-      if (currentLevel === 3) {
+      if (currentLevel === 2 || currentLevel === 3) {
         try { if (window.XR8) XR8.stop(); } catch (error) { /* Stop XR before removing its scene. */ }
       }
       if (sparringScene) sparringScene.remove();
-      if (currentLevel === 1) {
+      if (currentLevel === 1 || currentLevel === 2) {
         try { if (window.XR8) XR8.stop(); } catch (error) { /* Scene teardown still runs if XR was already stopped. */ }
         const scene = document.querySelector('a-scene');
         if (scene) scene.remove();
       }
       currentLevel = 0;
+      level2ArMode = false;
       document.querySelector('#hand-screen').hidden = true;
       document.querySelector('#hand-screen').classList.remove('tracked-combat');
       document.querySelector('#dummy-hud').hidden = true;
+      document.querySelector('#room-scan-panel').hidden = true;
       document.querySelector('#sparring-complete').hidden = true;
       setGameUi(false);
       document.querySelector('#launch-screen').hidden = false;
@@ -1490,7 +1853,7 @@
     <div class="hand-shade"></div>
     <div id="hand-boxes"></div>
     <canvas id="hand-lines" aria-hidden="true"></canvas>
-    <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div></div>
+    <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div><span id="hand-fps">… FPS</span></div>
     <div id="room-scan-panel" hidden>
       <strong>Сканирование комнаты</strong>
       <span id="room-scan-copy">Жду реальные координаты камеры и карты трекинга…</span>
@@ -1517,7 +1880,7 @@
   </div>
 
   <template id="sparring-scene-template">
-    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440; shadowMapEnabled: true; shadowMapType: pcfsoft" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
+    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1080; maxCanvasHeight: 1080; shadowMapEnabled: true; shadowMapType: pcfsoft" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
       <a-camera id="sparring-camera" position="0 1.6 0" raycaster="objects: .cantap; far: 10" cursor="fuse: false; rayOrigin: mouse" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
       <a-entity light="type: directional; intensity: 1.05; castShadow: true; shadowMapHeight: 512; shadowMapWidth: 512; shadowCameraFar: 12" position="-2 4 3"></a-entity>
       <a-light type="ambient" intensity="0.75"></a-light>
@@ -1550,7 +1913,7 @@
   </template>
 
   <template id="ar-scene-template">
-    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440; shadowMapEnabled: true; shadowMapType: pcfsoft" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1080; maxCanvasHeight: 1080; shadowMapEnabled: true; shadowMapType: pcfsoft" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
       <a-assets></a-assets>
       <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
       <a-entity light="type: directional; intensity: 0.9; castShadow: true; shadowMapHeight: 512; shadowMapWidth: 512; shadowCameraFar: 12" position="1 4 2"></a-entity>
