@@ -717,6 +717,7 @@
       hud.style.left = `${THREE.MathUtils.clamp(namePosition.x, 110, metrics.viewportWidth - 110)}px`;
       hud.style.top = `${THREE.MathUtils.clamp(namePosition.y - 26, 64, metrics.viewportHeight - 140)}px`;
       let strongestContact = null;
+      let handAimedAtDummy = false;
       const nextTracks = new Map();
       hands.forEach((landmarks, index) => {
         const center = palmCenter(landmarks, metrics);
@@ -742,8 +743,9 @@
           ? previous.depth + (measuredDepth - previous.depth) * 0.72
           : measuredDepth;
         const depthDistance = Math.abs(handDepth - targetDepth);
-        const inZone = normalizedDistance <= 1 && depthDistance <= 0.55;
-        const touching = normalizedDistance <= 1.22 && depthDistance <= 0.78;
+        if (normalizedDistance <= 1.22 && depthDistance > 0.58) handAimedAtDummy = true;
+        const inZone = normalizedDistance <= 1 && depthDistance <= 0.42;
+        const touching = normalizedDistance <= 1.22 && depthDistance <= 0.58;
         const closeness = Math.max(0, 1 - normalizedDistance / 1.22);
         if (touching && (!strongestContact || closeness > strongestContact.closeness)) {
           strongestContact = {nx: dx, ny: dy, closeness};
@@ -802,7 +804,9 @@
       if (!hands.length) {
         document.querySelector('#hand-status').textContent = 'Покажи руки в кадре — манекен ожидает удара.';
       } else if (!strongestContact) {
-        document.querySelector('#hand-status').textContent = 'Руки найдены. Наведи ладонь на торс для касания или замаха.';
+        document.querySelector('#hand-status').textContent = handAimedAtDummy
+          ? 'Рука наведена на манекен — подойди ближе, чтобы дотянуться.'
+          : 'Руки найдены. Наведи ладонь на торс для касания или замаха.';
       } else if (now - lastPunchAt > 300) {
         document.querySelector('#hand-status').textContent = 'Касание. Для урона отведи руку и быстро ударь по торсу.';
       }
@@ -1071,12 +1075,12 @@
   </div>
 
   <template id="sparring-scene-template">
-    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
-      <a-camera id="sparring-camera" position="0 1.6 0" raycaster="objects: .cantap; far: 10" cursor="fuse: false; rayOrigin: mouse" camera="active: true; fov: 60; near: 0.1; far: 16" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
+      <a-camera id="sparring-camera" position="0 1.6 0" raycaster="objects: .cantap; far: 10" cursor="fuse: false; rayOrigin: mouse" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
       <a-entity light="type: directional; intensity: 1.05" position="-2 4 3"></a-entity>
       <a-light type="ambient" intensity="0.75"></a-light>
       <a-box id="sparring-ground" class="cantap" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.22"></a-box>
-      <a-entity id="bag-dummy" position="0 0 -2.2" scale="0.8 0.8 0.8" visible="false">
+      <a-entity id="bag-dummy" position="0 0 -2.2" scale="0.72 0.72 0.72" visible="false">
         <a-cylinder position="0 0.15 0" radius="0.47" height="0.30" segments-radial="8" material="color: #24243a; metalness: 0.32; roughness: 0.42"></a-cylinder>
         <a-cylinder position="0 0.31 0" radius="0.40" height="0.05" segments-radial="8" material="color: #62f5dd; emissive: #126861; emissive-intensity: 0.18; metalness: 0.42; roughness: 0.3"></a-cylinder>
         <a-entity id="dummy-top" position="0 0.55 0" dummy-spring>
@@ -1104,7 +1108,7 @@
   </template>
 
   <template id="ar-scene-template">
-    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
       <a-assets></a-assets>
       <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
       <a-entity light="type: directional; intensity: 0.9" position="1 4 2"></a-entity>
