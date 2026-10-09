@@ -62,12 +62,16 @@
     .hand-shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
     #hand-boxes { position: absolute; z-index: 3; inset: 0; overflow: hidden; pointer-events: none; }
     .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 35%; background: #ff25452b; box-shadow: 0 0 14px #ff254540, inset 0 0 10px #ff25451f; }
-    #sparring-scene { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; }
-    #sparring-scene .a-canvas { z-index: 0 !important; pointer-events: none; }
+    #sparring-scene { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: auto; }
+    #sparring-scene .a-canvas { z-index: 0 !important; pointer-events: auto; }
+    #hand-screen.tracked-combat { background: transparent; }
+    #hand-screen.tracked-combat #hands-video { opacity: 0; }
+    #hand-screen.tracked-combat .hand-shade { opacity: 0; }
+    #hand-screen.tracked-combat #sparring-scene { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; }
     .hand-bar { position: absolute; z-index: 5; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: center; gap: 12px; }
     #hand-back { width: 42px; height: 42px; border: 1px solid #ffffff3b; border-radius: 14px; background: #10172be8; color: #fff; font-size: 20px; }
     .hand-title { color: white; font-size: 17px; font-weight: 800; text-shadow: 0 2px 10px #000; }
-    #hand-status { position: absolute; z-index: 5; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 15px; background: #0b1122e8; color: #fff; text-align: center; font-size: 13px; line-height: 1.4; }
+    #hand-status { position: absolute; z-index: 5; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 28px); padding: 11px 15px; border: 1px solid #ffffff32; border-radius: 15px; background: #0b1122e8; color: #fff; text-align: center; font-size: 13px; line-height: 1.4; pointer-events: none; }
     #dummy-hud { position: absolute; z-index: 4; top: max(72px, 12vh); left: 50%; transform: translateX(-50%); width: min(230px, calc(100% - 110px)); padding: 9px 13px; border: 1px solid #ffffff42; border-radius: 15px; background: #10172bdc; text-align: center; pointer-events: none; backdrop-filter: blur(8px); }
     #dummy-hud[hidden], #sparring-complete[hidden] { display: none; }
     #dummy-name { font-size: 14px; font-weight: 850; letter-spacing: .02em; }
@@ -358,8 +362,8 @@
         this.targetZ = 0;
       },
       setContact(nx, ny, strength) {
-        this.targetX = THREE.MathUtils.clamp(ny * strength * 0.28 - strength * 0.2, -0.4, 0.28);
-        this.targetZ = THREE.MathUtils.clamp(nx * strength * 0.4, -0.4, 0.4);
+        this.targetX = THREE.MathUtils.clamp(ny * strength * 0.20 - strength * 0.13, -0.28, 0.2);
+        this.targetZ = THREE.MathUtils.clamp(nx * strength * 0.28, -0.3, 0.3);
       },
       clearContact() {
         this.targetX = 0;
@@ -379,21 +383,84 @@
       },
       tick(time, timeDelta) {
         if (!this.body || !this.body.object3D) return;
-        const dt = Math.min((timeDelta || 16) / 1000, 0.04);
-        const stiffness = 34;
-        const damping = 5.2;
-        this.velocityX += ((this.targetX - this.angleX) * stiffness - this.velocityX * damping) * dt;
-        this.velocityZ += ((this.targetZ - this.angleZ) * stiffness - this.velocityZ * damping) * dt;
-        this.angleX = THREE.MathUtils.clamp(this.angleX + this.velocityX * dt, -0.62, 0.62);
-        this.angleZ = THREE.MathUtils.clamp(this.angleZ + this.velocityZ * dt, -0.68, 0.68);
+        let remaining = Math.min((timeDelta || 16) / 1000, 0.08);
+        const stiffness = 27;
+        const damping = 6.4;
+        while (remaining > 0) {
+          const dt = Math.min(remaining, 1 / 120);
+          this.velocityX += ((this.targetX - this.angleX) * stiffness - this.velocityX * damping) * dt;
+          this.velocityZ += ((this.targetZ - this.angleZ) * stiffness - this.velocityZ * damping) * dt;
+          this.angleX = THREE.MathUtils.clamp(this.angleX + this.velocityX * dt, -0.46, 0.46);
+          this.angleZ = THREE.MathUtils.clamp(this.angleZ + this.velocityZ * dt, -0.48, 0.48);
+          remaining -= dt;
+        }
         const body = this.body.object3D;
         body.rotation.x = this.angleX;
         body.rotation.z = this.angleZ;
-        body.position.x = -Math.sin(this.angleZ) * 0.25;
-        body.position.z = Math.sin(this.angleX) * 0.18;
+        body.position.x = -Math.sin(this.angleZ) * 0.11;
+        body.position.z = Math.sin(this.angleX) * 0.10;
         const stretch = Math.min(0.08, Math.hypot(this.angleX, this.angleZ) * 0.08);
         body.scale.y = 1 + stretch;
         body.scale.x = 1 - stretch * 0.34;
+      },
+    });
+
+    AFRAME.registerComponent('dummy-form', {
+      init() {
+        const torsoProfile = [
+          new THREE.Vector2(0, 0.02), new THREE.Vector2(0.24, 0.02),
+          new THREE.Vector2(0.32, 0.10), new THREE.Vector2(0.34, 0.23),
+          new THREE.Vector2(0.28, 0.34), new THREE.Vector2(0.30, 0.48),
+          new THREE.Vector2(0.39, 0.62), new THREE.Vector2(0.51, 0.76),
+          new THREE.Vector2(0.56, 0.84), new THREE.Vector2(0.48, 0.92),
+          new THREE.Vector2(0.28, 0.98), new THREE.Vector2(0.19, 1.02),
+          new THREE.Vector2(0, 1.02),
+        ];
+        const torso = new THREE.Mesh(
+          new THREE.LatheGeometry(torsoProfile, 20),
+          new THREE.MeshStandardMaterial({color: '#e7a087', roughness: 0.58, metalness: 0.08, flatShading: true}),
+        );
+        torso.position.y = 0.03;
+        this.el.setObject3D('sculpted-torso', torso);
+
+        const headProfile = [
+          new THREE.Vector2(0, 0), new THREE.Vector2(0.15, 0),
+          new THREE.Vector2(0.20, 0.06), new THREE.Vector2(0.22, 0.16),
+          new THREE.Vector2(0.21, 0.30), new THREE.Vector2(0.17, 0.41),
+          new THREE.Vector2(0.10, 0.47), new THREE.Vector2(0, 0.48),
+        ];
+        const head = new THREE.Mesh(
+          new THREE.LatheGeometry(headProfile, 18),
+          new THREE.MeshStandardMaterial({color: '#efb293', roughness: 0.54, metalness: 0.05, flatShading: true}),
+        );
+        head.position.set(0, 0.98, 0.015);
+        this.el.setObject3D('sculpted-head', head);
+      },
+    });
+
+    AFRAME.registerComponent('sparring-world', {
+      init() {
+        this.dummy = this.el.querySelector('#bag-dummy');
+        this.status = document.querySelector('#hand-status');
+        this.ground = this.el.querySelector('#sparring-ground');
+        this.placed = false;
+        this.el.addEventListener('realityready', () => {
+          if (this.status && currentLevel === 3) this.status.textContent = 'Комната отслеживается. Наведи камеру на пол и коснись места для груши.';
+        });
+        this.el.addEventListener('realityerror', () => {
+          if (this.status && currentLevel === 3) this.status.textContent = 'Не удалось запустить пространственный AR. Проверь доступ камеры в Safari и нажми назад.';
+        });
+        if (this.ground) this.ground.addEventListener('click', (event) => {
+          if (currentLevel !== 3 || !this.dummy || !event.detail || !event.detail.intersection) return;
+          const point = event.detail.intersection.point;
+          this.dummy.object3D.position.set(point.x, 0, point.z);
+          this.dummy.object3D.rotation.set(0, 0, 0);
+          this.dummy.setAttribute('visible', true);
+          this.placed = true;
+          const hud = document.querySelector('#dummy-hud');
+          if (hud) hud.hidden = false;
+          if (this.status) this.status.textContent = 'Груша стоит в комнате. Касайся торса ладонью или бей быстрым замахом.';
+        });
       },
     });
 
@@ -406,14 +473,17 @@
     let lastHandInference = 0;
     let lastVideoTime = -1;
     let handTracks = new Map();
+    let visualHandTracks = new Map();
     let dummyHp = 100;
     let lastPunchAt = 0;
 
     const prepareStartButton = () => {
       arEngineReady = true;
       const levelOne = document.querySelector('#level-one');
+      const levelThree = document.querySelector('#level-three');
       const launchStatus = document.querySelector('#launch-status');
       if (levelOne) levelOne.disabled = false;
+      if (levelThree) levelThree.disabled = false;
       if (launchStatus) launchStatus.textContent = 'Уровень 1 готов. Камера включится после выбора уровня.';
     };
 
@@ -443,15 +513,31 @@
     };
 
     const mountSparringScene = () => {
-      if (document.querySelector('#sparring-scene')) return;
-      const template = document.querySelector('#sparring-scene-template');
-      if (!template) return;
-      document.querySelector('#hand-screen').appendChild(template.content.cloneNode(true));
-      const scene = document.querySelector('#sparring-scene');
-      if (scene) {
-        scene.addEventListener('loaded', () => scene.resize(), {once: true});
-        requestAnimationFrame(() => { if (scene.resize) scene.resize(); });
+      const existing = document.querySelector('#sparring-scene');
+      if (existing) return Promise.resolve(existing);
+      XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
+      if (!coachingAdded && XR8.CoachingOverlay) {
+        XR8.CoachingOverlay.configure({animationColor: '#62f5dd', promptColor: '#ffffff', promptText: 'Плавно осмотри комнату, чтобы закрепить манекен в пространстве'});
+        XR8.addCameraPipelineModule(XR8.CoachingOverlay.pipelineModule());
+        coachingAdded = true;
       }
+      const template = document.querySelector('#sparring-scene-template');
+      if (!template) return Promise.reject(new Error('AR scene template missing'));
+      const scene = template.content.firstElementChild.cloneNode(true);
+      return new Promise((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('AR tracking timed out')), 18000);
+        scene.addEventListener('loaded', () => { if (scene.resize) scene.resize(); }, {once: true});
+        scene.addEventListener('realityready', () => {
+          window.clearTimeout(timeout);
+          resolve(scene);
+          requestAnimationFrame(() => { if (scene.resize) scene.resize(); });
+        }, {once: true});
+        scene.addEventListener('realityerror', () => {
+          window.clearTimeout(timeout);
+          reject(new Error('AR reality tracking failed'));
+        }, {once: true});
+        document.querySelector('#hand-screen').appendChild(scene);
+      });
     };
 
     const startLevelOne = () => {
@@ -495,12 +581,17 @@
       };
     };
 
-    const positionHandBoxes = (hands, imageWidth, imageHeight) => {
+    const positionHandBoxes = (hands, imageWidth, imageHeight, handedness = []) => {
       const overlay = document.querySelector('#hand-boxes');
-      overlay.replaceChildren();
       const metrics = getVideoMetrics(imageWidth, imageHeight);
       const palmIndexes = [0, 1, 2, 5, 6, 9, 10, 13, 14, 17, 18];
-      hands.forEach((landmarks) => {
+      const activeKeys = new Set();
+      const now = performance.now();
+      hands.forEach((landmarks, index) => {
+        const key = handedness[index] && handedness[index][0]
+          ? handedness[index][0].categoryName
+          : `hand-${index}`;
+        activeKeys.add(key);
         const points = palmIndexes.map((index) => landmarks[index]);
         let minX = Math.min(...points.map((point) => point.x));
         let maxX = Math.max(...points.map((point) => point.x));
@@ -512,13 +603,39 @@
         maxX -= insetX;
         minY += insetY;
         maxY -= insetY;
-        const box = document.createElement('div');
-        box.className = 'hand-box';
-        box.style.left = `${metrics.offsetX + minX * metrics.width}px`;
-        box.style.top = `${metrics.offsetY + minY * metrics.height}px`;
-        box.style.width = `${Math.max(6, (maxX - minX) * metrics.width)}px`;
-        box.style.height = `${Math.max(6, (maxY - minY) * metrics.height)}px`;
-        overlay.appendChild(box);
+        const measured = {
+          left: metrics.offsetX + minX * metrics.width,
+          top: metrics.offsetY + minY * metrics.height,
+          width: Math.max(6, (maxX - minX) * metrics.width),
+          height: Math.max(6, (maxY - minY) * metrics.height),
+        };
+        let track = visualHandTracks.get(key);
+        if (!track) {
+          const box = document.createElement('div');
+          box.className = 'hand-box';
+          overlay.appendChild(box);
+          track = {box, values: measured, time: now};
+          visualHandTracks.set(key, track);
+        } else {
+          const dt = Math.max(0.008, Math.min(0.08, (now - track.time) / 1000));
+          const speed = Math.hypot(measured.left - track.values.left, measured.top - track.values.top) / dt;
+          const cutoff = 1.4 + Math.min(22, speed * 0.018);
+          const smoothing = (2 * Math.PI * cutoff * dt) / (1 + 2 * Math.PI * cutoff * dt);
+          Object.keys(measured).forEach((property) => {
+            track.values[property] += (measured[property] - track.values[property]) * smoothing;
+          });
+          track.time = now;
+        }
+        track.box.style.left = `${track.values.left}px`;
+        track.box.style.top = `${track.values.top}px`;
+        track.box.style.width = `${track.values.width}px`;
+        track.box.style.height = `${track.values.height}px`;
+      });
+      visualHandTracks.forEach((track, key) => {
+        if (!activeKeys.has(key)) {
+          track.box.remove();
+          visualHandTracks.delete(key);
+        }
       });
       return metrics;
     };
@@ -550,22 +667,55 @@
       document.querySelector('#damage-pop').classList.remove('show');
       document.querySelector('#sparring-complete').hidden = true;
       const dummy = document.querySelector('#bag-dummy');
+      const top = document.querySelector('#dummy-top');
       if (dummy) {
-        dummy.setAttribute('visible', true);
-        const physics = dummy.components && dummy.components['dummy-spring'];
+        const scene = document.querySelector('#sparring-scene');
+        const world = scene && scene.components && scene.components['sparring-world'];
+        dummy.setAttribute('visible', Boolean(world && world.placed));
+        const physics = top && top.components && top.components['dummy-spring'];
         if (physics) physics.reset();
       }
-      document.querySelector('#hand-status').textContent = 'Покажи ладони и сделай быстрый замах по груше.';
+      const scene = document.querySelector('#sparring-scene');
+      const world = scene && scene.components && scene.components['sparring-world'];
+      document.querySelector('#hand-status').textContent = world && world.placed
+        ? 'Касайся торса ладонью или бей быстрым замахом.'
+        : 'Комната отслеживается. Коснись пола там, где поставить грушу.';
       lastVideoTime = -1;
       if (handTask && !handFrame) handFrame = window.requestAnimationFrame(handDetectionFrame);
     };
 
     const updateSparringHands = (result, hands, metrics, now) => {
       if (currentLevel !== 3 || dummyHp <= 0) return;
-      const targetX = metrics.viewportWidth * 0.5;
-      const targetY = metrics.viewportHeight * 0.52;
-      const radiusX = metrics.viewportWidth * 0.19;
-      const radiusY = metrics.viewportHeight * 0.15;
+      const scene = document.querySelector('#sparring-scene');
+      const camera = scene && scene.camera;
+      const dummy = document.querySelector('#bag-dummy');
+      const top = document.querySelector('#dummy-top');
+      const video = document.querySelector('#hands-video');
+      if (!scene || !camera || !dummy || !dummy.object3D || !dummy.object3D.visible || !video || !video.videoWidth) return;
+      const project = (point) => {
+        dummy.object3D.updateMatrixWorld(true);
+        camera.updateMatrixWorld(true);
+        const worldPoint = dummy.object3D.localToWorld(point);
+        const ndc = worldPoint.project(camera);
+        return {x: (ndc.x * 0.5 + 0.5) * metrics.viewportWidth, y: (-ndc.y * 0.5 + 0.5) * metrics.viewportHeight, z: ndc.z};
+      };
+      const chestWorld = dummy.object3D.localToWorld(new THREE.Vector3(0, 1.17, 0.2));
+      const cameraWorld = camera.getWorldPosition(new THREE.Vector3());
+      const targetDepth = cameraWorld.distanceTo(chestWorld);
+      const chest = project(new THREE.Vector3(0, 1.17, 0.2));
+      const leftEdge = project(new THREE.Vector3(-0.42, 1.17, 0.2));
+      const rightEdge = project(new THREE.Vector3(0.42, 1.17, 0.2));
+      const topEdge = project(new THREE.Vector3(0, 1.48, 0.2));
+      const bottomEdge = project(new THREE.Vector3(0, 0.83, 0.2));
+      if (chest.z < -1 || chest.z > 1) return;
+      const targetX = chest.x;
+      const targetY = chest.y;
+      const radiusX = Math.max(28, Math.abs(rightEdge.x - leftEdge.x) * 0.62);
+      const radiusY = Math.max(38, Math.abs(bottomEdge.y - topEdge.y) * 0.68);
+      const namePosition = project(new THREE.Vector3(0, 2.12, 0));
+      const hud = document.querySelector('#dummy-hud');
+      hud.style.left = `${THREE.MathUtils.clamp(namePosition.x, 110, metrics.viewportWidth - 110)}px`;
+      hud.style.top = `${THREE.MathUtils.clamp(namePosition.y - 26, 64, metrics.viewportHeight - 140)}px`;
       let strongestContact = null;
       const nextTracks = new Map();
       hands.forEach((landmarks, index) => {
@@ -574,12 +724,28 @@
           ? result.handedness[index][0].categoryName
           : `hand-${index}`;
         const previous = handTracks.get(key);
+        if (previous) {
+          const sampleDt = Math.max(0.008, Math.min(0.08, (now - previous.time) / 1000));
+          const sampleSpeed = Math.hypot(center.x - previous.x, center.y - previous.y) / sampleDt;
+          const cutoff = 1.7 + Math.min(25, sampleSpeed * 0.02);
+          const alpha = (2 * Math.PI * cutoff * sampleDt) / (1 + 2 * Math.PI * cutoff * sampleDt);
+          center.x = previous.x + (center.x - previous.x) * alpha;
+          center.y = previous.y + (center.y - previous.y) * alpha;
+        }
         const dx = (center.x - targetX) / radiusX;
         const dy = (center.y - targetY) / radiusY;
         const normalizedDistance = Math.hypot(dx, dy);
-        const inZone = normalizedDistance <= 1;
-        const closeness = Math.max(0, 1 - normalizedDistance);
-        if (inZone && (!strongestContact || closeness > strongestContact.closeness)) {
+        const rawPalmSpan = Math.hypot((landmarks[5].x - landmarks[17].x) * video.videoWidth, (landmarks[5].y - landmarks[17].y) * video.videoHeight);
+        const focalPixels = video.videoWidth / (2 * Math.tan(63 * Math.PI / 360));
+        const measuredDepth = rawPalmSpan > 1 ? 0.075 * focalPixels / rawPalmSpan : Infinity;
+        const handDepth = previous && Number.isFinite(previous.depth) && Number.isFinite(measuredDepth)
+          ? previous.depth + (measuredDepth - previous.depth) * 0.72
+          : measuredDepth;
+        const depthDistance = Math.abs(handDepth - targetDepth);
+        const inZone = normalizedDistance <= 1 && depthDistance <= 0.55;
+        const touching = normalizedDistance <= 1.22 && depthDistance <= 0.78;
+        const closeness = Math.max(0, 1 - normalizedDistance / 1.22);
+        if (touching && (!strongestContact || closeness > strongestContact.closeness)) {
           strongestContact = {nx: dx, ny: dy, closeness};
         }
         let speed = 0;
@@ -620,17 +786,15 @@
           if ((lateralHit || forwardHit) && now - lastPunchAt >= 460) {
             const damage = Math.round(10 + Math.min(1, (speed - 700) / 1500) * 30);
             lastPunchAt = now;
-            const dummy = document.querySelector('#bag-dummy');
-            const physics = dummy && dummy.components && dummy.components['dummy-spring'];
+            const physics = top && top.components && top.components['dummy-spring'];
             if (physics) physics.hit(directionX, directionY, damage / 40);
             showPunchDamage(damage);
           }
         }
-        nextTracks.set(key, {x: center.x, y: center.y, span: palmSpan, time: now, inZone});
+        nextTracks.set(key, {x: center.x, y: center.y, span: palmSpan, depth: handDepth, time: now, inZone});
       });
       handTracks = nextTracks;
-      const dummy = document.querySelector('#bag-dummy');
-      const physics = dummy && dummy.components && dummy.components['dummy-spring'];
+      const physics = top && top.components && top.components['dummy-spring'];
       if (physics) {
         if (strongestContact) physics.setContact(strongestContact.nx, strongestContact.ny, strongestContact.closeness);
         else physics.clearContact();
@@ -649,13 +813,13 @@
       if (currentLevel === 3 && dummyHp <= 0) { handFrame = 0; return; }
       const now = performance.now();
       const video = document.querySelector('#hands-video');
-      if (now - lastHandInference >= 34 && video.readyState >= 2 && video.videoWidth && video.videoHeight && video.currentTime !== lastVideoTime) {
+      if (now - lastHandInference >= 8 && video.readyState >= 2 && video.videoWidth && video.videoHeight && video.currentTime !== lastVideoTime) {
         lastHandInference = now;
         lastVideoTime = video.currentTime;
         try {
           const result = handTask.detectForVideo(video, now);
           const hands = result.landmarks || [];
-          const metrics = positionHandBoxes(hands, video.videoWidth, video.videoHeight);
+          const metrics = positionHandBoxes(hands, video.videoWidth, video.videoHeight, result.handedness || []);
           if (currentLevel === 3) updateSparringHands(result, hands, metrics, now);
           else document.querySelector('#hand-status').textContent = hands.length
             ? `Рук в кадре: ${hands.length} · рамка внутри ладони`
@@ -679,6 +843,8 @@
       handTask = null;
       if (handStream) handStream.getTracks().forEach((track) => track.stop());
       handStream = null;
+      visualHandTracks.forEach((track) => track.box.remove());
+      visualHandTracks.clear();
       const video = document.querySelector('#hands-video');
       if (video) video.srcObject = null;
       document.querySelector('#hand-boxes').replaceChildren();
@@ -687,13 +853,14 @@
     const startHandLevel = async (level = 2) => {
       currentLevel = level;
       document.querySelector('#launch-screen').hidden = true;
-      document.querySelector('#hand-screen').hidden = false;
+      const handScreen = document.querySelector('#hand-screen');
+      handScreen.hidden = false;
+      handScreen.classList.toggle('tracked-combat', level === 3);
       setGameUi(false);
       document.querySelector('.hand-title').textContent = level === 3 ? 'Уровень 3 · Тренировка' : 'Уровень 2 · Проверка рук';
-      document.querySelector('#dummy-hud').hidden = level !== 3;
+      document.querySelector('#dummy-hud').hidden = true;
       document.querySelector('#sparring-complete').hidden = true;
       if (level === 3) {
-        mountSparringScene();
         dummyHp = 100;
         document.querySelector('#dummy-hp-fill').style.width = '100%';
         document.querySelector('#dummy-hp-text').textContent = '100 / 100 HP';
@@ -701,14 +868,20 @@
         const previousScene = document.querySelector('#sparring-scene');
         if (previousScene) previousScene.remove();
       }
-      document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру…';
       releaseHandResources();
       handTracks.clear();
       try {
+        if (level === 3 && !window.XR8) throw new Error('AR tracking is still loading');
+        if (level === 3) {
+          document.querySelector('#hand-status').textContent = 'Запускаю пространственный трекинг…';
+          await mountSparringScene();
+          if (currentLevel !== 3) return;
+        }
+        document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру для рук…';
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
         handStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: {facingMode: {exact: 'environment'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 30}},
+          video: {facingMode: {exact: 'environment'}, width: {ideal: 640}, height: {ideal: 480}, frameRate: {ideal: 60, max: 60}},
         });
         if (currentLevel !== level) {
           handStream.getTracks().forEach((track) => track.stop());
@@ -723,14 +896,20 @@
           : 'Основная камера включена. Загружаю распознавание рук…';
         const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
         const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
-        handTask = await vision.HandLandmarker.createFromOptions(files, {
-          baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'CPU'},
+        const taskOptions = {
+          baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'GPU'},
           runningMode: 'VIDEO',
           numHands: 2,
-          minHandDetectionConfidence: 0.4,
-          minHandPresenceConfidence: 0.4,
-          minTrackingConfidence: 0.35,
-        });
+          minHandDetectionConfidence: 0.38,
+          minHandPresenceConfidence: 0.36,
+          minTrackingConfidence: 0.32,
+        };
+        try {
+          handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+        } catch (gpuError) {
+          taskOptions.baseOptions.delegate = 'CPU';
+          handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+        }
         if (currentLevel !== level) {
           releaseHandResources();
           return;
@@ -744,8 +923,11 @@
         }
       } catch (error) {
         if (currentLevel === level) {
+          releaseHandResources();
           const detail = String(error && error.message || error).slice(0, 100);
-          document.querySelector('#hand-status').textContent = `Не загрузилось распознавание (${detail}). Проверь интернет и нажми назад, затем попробуй снова.`;
+          document.querySelector('#hand-status').textContent = level === 3
+            ? `Не запустился AR или трекинг рук (${detail}). Проверь камеру и интернет, затем попробуй снова.`
+            : `Не загрузилось распознавание (${detail}). Проверь интернет и нажми назад, затем попробуй снова.`;
         }
       }
     };
@@ -768,6 +950,9 @@
       hideSettings(false);
       if (currentLevel === 2 || currentLevel === 3) releaseHandResources();
       const sparringScene = document.querySelector('#sparring-scene');
+      if (currentLevel === 3) {
+        try { if (window.XR8) XR8.stop(); } catch (error) { /* Stop XR before removing its scene. */ }
+      }
       if (sparringScene) sparringScene.remove();
       if (currentLevel === 1) {
         try { if (window.XR8) XR8.stop(); } catch (error) { /* Scene teardown still runs if XR was already stopped. */ }
@@ -776,6 +961,7 @@
       }
       currentLevel = 0;
       document.querySelector('#hand-screen').hidden = true;
+      document.querySelector('#hand-screen').classList.remove('tracked-combat');
       document.querySelector('#dummy-hud').hidden = true;
       document.querySelector('#sparring-complete').hidden = true;
       setGameUi(false);
@@ -844,8 +1030,8 @@
         <button id="level-two" class="level-card secondary" type="button">
           <span class="level-number">Уровень 2</span><strong>Проверка рук</strong><small>Покажи руки камере — найденные руки обведутся полупрозрачным красным.</small>
         </button>
-        <button id="level-three" class="level-card tertiary" type="button">
-          <span class="level-number">Уровень 3</span><strong>Тренировка с манекеном</strong><small>Касайся торса или бей быстрым замахом — манекен качнётся, а HP уменьшится.</small>
+        <button id="level-three" class="level-card tertiary" type="button" disabled>
+          <span class="level-number">Уровень 3</span><strong>Тренировка с манекеном</strong><small>Коснись пола, чтобы поставить грушу в комнате. Быстрые удары качнут торс и снимут HP.</small>
         </button>
       </div>
       <div id="launch-status">Подготавливаем AR-трекинг…</div>
@@ -885,30 +1071,33 @@
   </div>
 
   <template id="sparring-scene-template">
-    <a-scene id="sparring-scene" embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440">
-      <a-camera position="0 1.28 0" camera="active: true; fov: 60; near: 0.1; far: 16" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile">
+      <a-camera id="sparring-camera" position="0 1.6 0" raycaster="objects: .cantap; far: 10" cursor="fuse: false; rayOrigin: mouse" camera="active: true; fov: 60; near: 0.1; far: 16" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
       <a-entity light="type: directional; intensity: 1.05" position="-2 4 3"></a-entity>
       <a-light type="ambient" intensity="0.75"></a-light>
-      <a-entity id="bag-dummy" position="0 0 -2.7" dummy-spring>
+      <a-box id="sparring-ground" class="cantap" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.22"></a-box>
+      <a-entity id="bag-dummy" position="0 0 -2.2" scale="0.8 0.8 0.8" visible="false">
         <a-cylinder position="0 0.15 0" radius="0.47" height="0.30" segments-radial="8" material="color: #24243a; metalness: 0.32; roughness: 0.42"></a-cylinder>
         <a-cylinder position="0 0.31 0" radius="0.40" height="0.05" segments-radial="8" material="color: #62f5dd; emissive: #126861; emissive-intensity: 0.18; metalness: 0.42; roughness: 0.3"></a-cylinder>
-        <a-cylinder position="0 0.49 0" radius="0.075" height="0.37" segments-radial="8" material="color: #4d4671; metalness: 0.5; roughness: 0.38"></a-cylinder>
-        <a-entity position="0 0.39 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #a98aff; emissive: #35225f; emissive-intensity: 0.25; metalness: 0.44; roughness: 0.32"></a-entity>
-        <a-entity position="0 0.46 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #62f5dd; emissive: #165e60; emissive-intensity: 0.2; metalness: 0.42; roughness: 0.34"></a-entity>
-        <a-entity position="0 0.53 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #a98aff; emissive: #35225f; emissive-intensity: 0.25; metalness: 0.44; roughness: 0.32"></a-entity>
-        <a-entity position="0 0.60 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #62f5dd; emissive: #165e60; emissive-intensity: 0.2; metalness: 0.42; roughness: 0.34"></a-entity>
-        <a-entity id="dummy-body" position="0 0.68 0">
-          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0 0.46 0" scale="0.48 0.60 0.31" material="color: #f0a27f; emissive: #552718; emissive-intensity: 0.05; metalness: 0.12; roughness: 0.46; flatShading: true"></a-entity>
-          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0 0.79 0" scale="0.62 0.23 0.34" material="color: #f4b08d; emissive: #552718; emissive-intensity: 0.04; metalness: 0.1; roughness: 0.46; flatShading: true"></a-entity>
-          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="-0.49 0.66 0" rotation="0 0 -12" scale="0.19 0.40 0.22" material="color: #efa17e; metalness: 0.1; roughness: 0.48; flatShading: true"></a-entity>
-          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0.49 0.66 0" rotation="0 0 12" scale="0.19 0.40 0.22" material="color: #efa17e; metalness: 0.1; roughness: 0.48; flatShading: true"></a-entity>
-          <a-cylinder position="0 1.01 0" radius="0.13" height="0.18" segments-radial="8" material="color: #e99a78; roughness: 0.5"></a-cylinder>
-          <a-entity geometry="primitive: sphere; segmentsWidth: 12; segmentsHeight: 8" position="0 1.27 0" scale="0.24 0.30 0.23" material="color: #f3ad89; metalness: 0.08; roughness: 0.45; flatShading: true"></a-entity>
-          <a-entity geometry="primitive: sphere" position="-0.075 1.30 0.205" scale="0.026 0.042 0.018" material="color: #362b48; roughness: 0.38"></a-entity>
-          <a-entity geometry="primitive: sphere" position="0.075 1.30 0.205" scale="0.026 0.042 0.018" material="color: #362b48; roughness: 0.38"></a-entity>
+        <a-entity id="dummy-top" position="0 0.55 0" dummy-spring>
+        <a-cylinder position="0 0.11 0" radius="0.075" height="0.37" segments-radial="8" material="color: #4d4671; metalness: 0.5; roughness: 0.38"></a-cylinder>
+        <a-entity position="0 0.02 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #a98aff; emissive: #35225f; emissive-intensity: 0.25; metalness: 0.44; roughness: 0.32"></a-entity>
+        <a-entity position="0 0.09 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #62f5dd; emissive: #165e60; emissive-intensity: 0.2; metalness: 0.42; roughness: 0.34"></a-entity>
+        <a-entity position="0 0.16 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #a98aff; emissive: #35225f; emissive-intensity: 0.25; metalness: 0.44; roughness: 0.32"></a-entity>
+        <a-entity position="0 0.23 0" rotation="90 0 0" geometry="primitive: torus; radius: 0.13; radiusTubular: 0.022; segmentsRadial: 7; segmentsTubular: 14" material="color: #62f5dd; emissive: #165e60; emissive-intensity: 0.2; metalness: 0.42; roughness: 0.34"></a-entity>
+        <a-entity id="dummy-body" position="0 0 0" dummy-form>
+          <a-entity geometry="primitive: sphere; segmentsWidth: 10; segmentsHeight: 8" position="-0.46 0.73 0" rotation="0 0 -20" scale="0.15 0.31 0.18" material="color: #e6a087; metalness: 0.08; roughness: 0.58; flatShading: true"></a-entity>
+          <a-entity geometry="primitive: sphere; segmentsWidth: 10; segmentsHeight: 8" position="0.46 0.73 0" rotation="0 0 20" scale="0.15 0.31 0.18" material="color: #e6a087; metalness: 0.08; roughness: 0.58; flatShading: true"></a-entity>
+          <a-entity geometry="primitive: sphere" position="-0.205 1.25 0.085" scale="0.035 0.065 0.04" material="color: #e5a78d; roughness: 0.62"></a-entity>
+          <a-entity geometry="primitive: sphere" position="0.205 1.25 0.085" scale="0.035 0.065 0.04" material="color: #e5a78d; roughness: 0.62"></a-entity>
+          <a-entity geometry="primitive: sphere" position="0 1.23 0.205" scale="0.04 0.065 0.055" material="color: #d88d77; roughness: 0.55"></a-entity>
+          <a-entity geometry="primitive: box" position="0 1.12 0.194" scale="0.075 0.012 0.012" material="color: #a96261; roughness: 0.62"></a-entity>
+          <a-entity geometry="primitive: sphere" position="-0.075 1.29 0.188" scale="0.025 0.034 0.018" material="color: #362b48; roughness: 0.38"></a-entity>
+          <a-entity geometry="primitive: sphere" position="0.075 1.29 0.188" scale="0.025 0.034 0.018" material="color: #362b48; roughness: 0.38"></a-entity>
           <a-entity geometry="primitive: icosahedron; radius: 0.12" position="0 0.51 0.315" material="color: #62f5dd; emissive: #16766b; emissive-intensity: 0.32; metalness: 0.4; roughness: 0.22"></a-entity>
           <a-entity geometry="primitive: octahedron; radius: 0.075" position="-0.14 0.51 0.285" rotation="0 0 30" material="color: #ff76c8; emissive: #87335e; emissive-intensity: 0.18; metalness: 0.22; roughness: 0.28"></a-entity>
           <a-entity geometry="primitive: octahedron; radius: 0.075" position="0.14 0.51 0.285" rotation="0 0 -30" material="color: #a98aff; emissive: #4f367c; emissive-intensity: 0.18; metalness: 0.22; roughness: 0.28"></a-entity>
+        </a-entity>
         </a-entity>
       </a-entity>
     </a-scene>
