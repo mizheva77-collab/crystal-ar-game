@@ -62,6 +62,7 @@
     .hand-shade { position: absolute; z-index: 1; inset: 0; background: linear-gradient(180deg,#060a16a8,transparent 35%,transparent 60%,#060a16c9); pointer-events: none; }
     #hand-boxes { position: absolute; z-index: 3; inset: 0; overflow: hidden; pointer-events: none; }
     #hand-lines { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #first-level-hands { position: fixed; z-index: 3; inset: 0; display: none; width: 100%; height: 100%; pointer-events: none; }
     #hand-screen.tracked-combat #hand-boxes { display: none; }
     .hand-box { position: absolute; border: 2px solid #ff526e; border-radius: 35%; background: #ff25452b; box-shadow: 0 0 14px #ff254540, inset 0 0 10px #ff25451f; }
     #sparring-scene { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: auto; }
@@ -84,6 +85,14 @@
     #damage-pop.show { animation: damage-pop .75s ease-out forwards; }
     @keyframes damage-pop { 12% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 100% { opacity: 0; transform: translate(-50%, -35px) scale(1); } }
     #sparring-complete { position: absolute; z-index: 6; inset: 0; display: grid; place-items: center; padding: 24px; background: #05081665; backdrop-filter: blur(5px); }
+    #room-scan-panel { position: absolute; z-index: 6; top: max(66px, 10vh); left: 50%; transform: translateX(-50%); width: min(390px, calc(100% - 28px)); padding: 15px; border: 1px solid #ffffff38; border-radius: 18px; background: #0b1122ed; box-shadow: 0 10px 35px #0008; text-align: center; }
+    #room-scan-panel[hidden] { display: none; }
+    #room-scan-panel strong { display: block; font-size: 15px; }
+    #room-scan-copy { display: block; margin-top: 5px; color: #c2cbea; font-size: 12px; line-height: 1.4; }
+    #room-scan-track { height: 10px; margin: 11px 0 8px; overflow: hidden; border-radius: 99px; background: #ffffff26; }
+    #room-scan-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#62f5dd,#a98aff); transition: width .18s ease; }
+    #start-dummy { width: 100%; min-height: 44px; border: 0; border-radius: 12px; background: linear-gradient(110deg,#8b5cf6,#42d6c5); color: #07111e; font: inherit; font-weight: 850; opacity: .45; }
+    #start-dummy:enabled { opacity: 1; }
     .sparring-result-card { width: min(340px,100%); padding: 25px; border: 1px solid #62f5dd66; border-radius: 24px; background: #0c1427f2; text-align: center; box-shadow: 0 20px 80px #0008; }
     .sparring-result-card h2 { margin: 0 0 8px; font-size: 25px; }
     .sparring-result-card p { margin: 0 0 16px; color: #c2cbea; }
@@ -199,7 +208,8 @@
         this.el.addEventListener('realityerror', () => {
           this.status.textContent = 'AR не запустился. Открой ссылку в Safari или Chrome и проверь разрешение камеры.';
         });
-        const restartFromButton = (event) => {
+      this.handLastCollectAt = 0;
+      const restartFromButton = (event) => {
           event.preventDefault();
           event.stopPropagation();
           if (Date.now() - this.lastRestartAt < 400) return;
@@ -230,17 +240,17 @@
         ];
         offsets.forEach(([dx, dz], index) => {
           const crystal = document.createElement('a-entity');
-          crystal.classList.add('crystal', 'clickable');
+          crystal.classList.add('crystal');
           crystal.dataset.index = String(index);
           crystal.setAttribute('position', `${center.x + dx} ${center.y + 0.3} ${center.z + dz}`);
           crystal.setAttribute('geometry', 'primitive: octahedron; radius: 0.30');
           crystal.setAttribute('material', `color: ${crystalColors[index]}; emissive: ${crystalColors[index]}; emissiveIntensity: 0.75; metalness: 0.18; roughness: 0.2`);
-          crystal.addEventListener('click', () => this.collect(crystal));
+          crystal.setAttribute('shadow', 'cast: true; receive: false');
           this.el.appendChild(crystal);
           this.crystals.push(crystal);
         });
         this.createPot(center);
-        this.status.textContent = 'Подойди к кристаллам ближе чем на метр. Горшок мягко оттолкнётся, если подойти.';
+      this.status.textContent = 'Подойди к кристаллу и коснись его рукой, чтобы забрать.';
       },
 
       createPot(center) {
@@ -248,6 +258,7 @@
         pot.classList.add('flower-pot');
         pot.setAttribute('position', `${center.x} 0.16 ${center.z}`);
         pot.setAttribute('pot-bump', 'radius: 0.38');
+        pot.setAttribute('shadow', 'cast: true; receive: false');
 
         const addPart = (geometry, material, position, rotation = '0 0 0') => {
           const part = document.createElement('a-entity');
@@ -315,16 +326,17 @@
         return new THREE.Vector3(position.x + forward.x * 1.6, 0, position.z + forward.z * 1.6);
       },
 
-      collect(crystal) {
+      collect(crystal, byHand = false) {
         if (!crystal.isConnected || crystal.dataset.collected === 'yes') return;
+        if (!byHand) return;
         const camera = document.querySelector('#camera');
         if (!camera || !camera.object3D) return;
         camera.object3D.getWorldPosition(this.cameraPosition);
         crystal.object3D.getWorldPosition(this.crystalPosition);
         const dx = this.cameraPosition.x - this.crystalPosition.x;
         const dz = this.cameraPosition.z - this.crystalPosition.z;
-        if (Math.hypot(dx, dz) > 1.05) {
-          this.status.textContent = 'Кристалл далеко — подойди ближе, примерно на один метр, чтобы собрать.';
+        if (Math.hypot(dx, dz) > 1.15) {
+          this.status.textContent = 'Подойди ближе к кристаллу, чтобы дотянуться рукой.';
           return;
         }
         crystal.dataset.collected = 'yes';
@@ -454,25 +466,66 @@
       init() {
         this.dummy = this.el.querySelector('#bag-dummy');
         this.status = document.querySelector('#hand-status');
-        this.ground = this.el.querySelector('#sparring-ground');
+        this.scanPanel = document.querySelector('#room-scan-panel');
+        this.scanFill = document.querySelector('#room-scan-fill');
+        this.scanCopy = document.querySelector('#room-scan-copy');
+        this.startButton = document.querySelector('#start-dummy');
         this.placed = false;
+        this.scanStartedAt = 0;
+        this.travelled = 0;
+        this.lastPosition = null;
+        this.yawSectors = new Set();
+        this.cameraPosition = new THREE.Vector3();
+        this.forward = new THREE.Vector3();
         this.el.addEventListener('realityready', () => {
-          if (this.status && currentLevel === 3) this.status.textContent = 'Комната отслеживается. Наведи камеру на пол и коснись места для груши.';
+          this.scanStartedAt = performance.now();
+          if (this.dummy) this.dummy.setAttribute('visible', false);
+          if (this.scanPanel) this.scanPanel.hidden = false;
+          if (this.status && currentLevel === 3) this.status.textContent = 'Медленно обойди комнату, чтобы AR закрепил поверхности.';
         });
         this.el.addEventListener('realityerror', () => {
           if (this.status && currentLevel === 3) this.status.textContent = 'Не удалось запустить пространственный AR. Проверь доступ камеры в Safari и нажми назад.';
         });
-        if (this.ground) this.ground.addEventListener('click', (event) => {
-          if (currentLevel !== 3 || !this.dummy || !event.detail || !event.detail.intersection) return;
-          const point = event.detail.intersection.point;
-          this.dummy.object3D.position.set(point.x, 0, point.z);
-          this.dummy.object3D.rotation.set(0, 0, 0);
-          this.dummy.setAttribute('visible', true);
-          this.placed = true;
-          const hud = document.querySelector('#dummy-hud');
-          if (hud) hud.hidden = false;
-          if (this.status) this.status.textContent = 'Груша стоит в комнате. Касайся торса ладонью или бей быстрым замахом.';
-        });
+        if (this.startButton) this.startButton.addEventListener('click', () => this.startDummy());
+      },
+      tick() {
+        if (currentLevel !== 3 || this.placed || !this.scanStartedAt) return;
+        const camera = this.el.camera;
+        if (!camera) return;
+        camera.getWorldPosition(this.cameraPosition);
+        camera.getWorldDirection(this.forward);
+        const yaw = Math.atan2(this.forward.x, -this.forward.z);
+        this.yawSectors.add(Math.floor(((yaw + Math.PI) / (Math.PI * 2)) * 8) % 8);
+        if (this.lastPosition) this.travelled += Math.hypot(this.cameraPosition.x - this.lastPosition.x, this.cameraPosition.z - this.lastPosition.z);
+        this.lastPosition = this.cameraPosition.clone();
+        const elapsed = (performance.now() - this.scanStartedAt) / 1000;
+        const sectorProgress = Math.min(1, this.yawSectors.size / 7);
+        const travelProgress = Math.min(1, this.travelled / 1.6);
+        const pointsProgress = Math.min(1, roomWorldPointCount / 55);
+        const progress = Math.round((sectorProgress * 0.42 + travelProgress * 0.36 + pointsProgress * 0.22) * 100);
+        if (this.scanFill) this.scanFill.style.width = `${progress}%`;
+        const ready = this.yawSectors.size >= 6 && this.travelled >= 1.2 && (roomWorldPointCount >= 24 || elapsed >= 22);
+        if (this.scanCopy) this.scanCopy.textContent = ready
+          ? 'Комната распознана. Закрепи манекен перед собой.'
+          : `Осмотрено ${this.yawSectors.size}/8 направлений · пройдено ${this.travelled.toFixed(1)} м · деталей среды ${roomWorldPointCount}`;
+        if (this.startButton) this.startButton.disabled = !ready;
+        if (ready && this.status) this.status.textContent = 'Комната распознана. Нажми кнопку, чтобы поставить манекен в AR.';
+      },
+      startDummy() {
+        if (currentLevel !== 3 || this.placed || !this.startButton || this.startButton.disabled) return;
+        const camera = this.el.camera;
+        if (!camera || !this.dummy) return;
+        camera.getWorldPosition(this.cameraPosition);
+        camera.getWorldDirection(this.forward);
+        const position = this.cameraPosition.clone().add(this.forward.multiplyScalar(1.65));
+        this.dummy.object3D.position.set(position.x, 0, position.z);
+        this.dummy.object3D.rotation.set(0, Math.atan2(this.forward.x, this.forward.z), 0);
+        this.dummy.setAttribute('visible', true);
+        this.placed = true;
+        if (this.scanPanel) this.scanPanel.hidden = true;
+        const hud = document.querySelector('#dummy-hud');
+        if (hud) hud.hidden = false;
+        if (this.status) this.status.textContent = 'Манекен закреплён в комнате. Подойди близко и ударь рукой.';
       },
     });
 
@@ -484,10 +537,95 @@
     let handFrame = 0;
     let lastHandInference = 0;
     let lastVideoTime = -1;
+    let handCameraFrame = 0;
+    let handCameraPipelineReady = false;
+    let handImageData = null;
+    let handCutoutCanvas = null;
+    let handMaskCanvas = null;
+    let roomWorldPointCount = 0;
     let handTracks = new Map();
     let visualHandTracks = new Map();
     let dummyHp = 100;
     let lastPunchAt = 0;
+
+    const countWorldPoints = (value) => {
+      if (!value) return 0;
+      if (Array.isArray(value)) return value.length;
+      if (ArrayBuffer.isView(value)) return Math.floor(value.length / 3);
+      if (Array.isArray(value.points)) return value.points.length;
+      if (ArrayBuffer.isView(value.points)) return Math.floor(value.points.length / 3);
+      if (Number.isFinite(value.length)) return Math.floor(value.length / 3);
+      return 0;
+    };
+
+    const ensureHandCameraPipeline = () => {
+      if (handCameraPipelineReady) return true;
+      if (!window.XR8 || !XR8.CameraPixelArray || !XR8.addCameraPipelineModule) return false;
+      XR8.addCameraPipelineModule(XR8.CameraPixelArray.pipelineModule({maxDimension: 480}));
+      XR8.addCameraPipelineModule({
+        name: 'crystal-ar-hand-camera-source',
+        onProcessCpu: ({processGpuResult}) => {
+          if (currentLevel !== 1 && currentLevel !== 3) return;
+          const frame = processGpuResult && processGpuResult.camerapixelarray;
+          const canvas = document.querySelector('#hand-source');
+          if (!frame || !frame.pixels || !frame.cols || !frame.rows || !canvas) return;
+          if (canvas.width !== frame.cols || canvas.height !== frame.rows) {
+            canvas.width = frame.cols;
+            canvas.height = frame.rows;
+            handImageData = null;
+          }
+          const context = canvas.getContext('2d', {willReadFrequently: false});
+          if (!handImageData || handImageData.width !== frame.cols || handImageData.height !== frame.rows) {
+            handImageData = context.createImageData(frame.cols, frame.rows);
+          }
+          const rowBytes = frame.rowBytes || Math.floor(frame.pixels.length / frame.rows);
+          const channels = rowBytes / frame.cols === 3 ? 3 : 4;
+          for (let row = 0; row < frame.rows; row += 1) {
+            const sourceStart = row * rowBytes;
+            const targetStart = row * frame.cols * 4;
+            if (channels === 4) handImageData.data.set(frame.pixels.subarray(sourceStart, sourceStart + frame.cols * 4), targetStart);
+            else for (let col = 0; col < frame.cols; col += 1) {
+              const from = sourceStart + col * 3;
+              const to = targetStart + col * 4;
+              handImageData.data[to] = frame.pixels[from];
+              handImageData.data[to + 1] = frame.pixels[from + 1];
+              handImageData.data[to + 2] = frame.pixels[from + 2];
+              handImageData.data[to + 3] = 255;
+            }
+          }
+          context.putImageData(handImageData, 0, 0);
+          handCameraFrame += 1;
+        },
+        onUpdate: ({processCpuResult}) => {
+          if (currentLevel !== 3) return;
+          const reality = processCpuResult && processCpuResult.reality;
+          roomWorldPointCount = countWorldPoints(reality && reality.worldPoints);
+        },
+      });
+      handCameraPipelineReady = true;
+      return true;
+    };
+
+    const loadHandLandmarker = async () => {
+      if (handTask) return handTask;
+      const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
+      const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
+      const taskOptions = {
+        baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'GPU'},
+        runningMode: 'VIDEO',
+        numHands: 2,
+        minHandDetectionConfidence: 0.38,
+        minHandPresenceConfidence: 0.36,
+        minTrackingConfidence: 0.32,
+      };
+      try {
+        handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+      } catch (gpuError) {
+        taskOptions.baseOptions.delegate = 'CPU';
+        handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+      }
+      return handTask;
+    };
 
     const prepareStartButton = () => {
       arEngineReady = true;
@@ -505,10 +643,20 @@
       document.querySelector('#settings-button').classList.toggle('active', active);
     };
 
+    const startSharedHandTracking = async (level) => {
+      if (!ensureHandCameraPipeline()) throw new Error('Камера AR недоступна для распознавания рук');
+      await loadHandLandmarker();
+      if (currentLevel !== level) return;
+      lastVideoTime = -1;
+      lastHandInference = 0;
+      handFrame = window.requestAnimationFrame(handDetectionFrame);
+    };
+
     const mountARScene = () => {
       if (document.querySelector('a-scene')) return true;
       if (!window.XR8 || !XR8.XrController) return false;
-      XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
+      XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false, enableWorldPoints: true});
+      ensureHandCameraPipeline();
       if (!coachingAdded && XR8.CoachingOverlay) {
         XR8.CoachingOverlay.configure({
           animationColor: '#62f5dd',
@@ -527,7 +675,8 @@
     const mountSparringScene = () => {
       const existing = document.querySelector('#sparring-scene');
       if (existing) return Promise.resolve(existing);
-      XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false});
+      XR8.XrController.configure({scale: 'absolute', disableWorldTracking: false, enableWorldPoints: true});
+      ensureHandCameraPipeline();
       if (!coachingAdded && XR8.CoachingOverlay) {
         XR8.CoachingOverlay.configure({animationColor: '#62f5dd', promptColor: '#ffffff', promptText: 'Плавно осмотри комнату, чтобы закрепить манекен в пространстве'});
         XR8.addCameraPipelineModule(XR8.CoachingOverlay.pipelineModule());
@@ -558,7 +707,12 @@
       try {
         if (!mountARScene()) throw new Error('AR engine is unavailable');
         document.querySelector('#launch-screen').hidden = true;
+        document.querySelector('#first-level-hands').style.display = 'block';
         setGameUi(true);
+        document.querySelector('#status').textContent = 'Покажи руку и коснись кристалла — подойти нужно близко.';
+        startSharedHandTracking(1).catch((error) => {
+          if (currentLevel === 1) document.querySelector('#status').textContent = `Трекинг рук не загрузился: ${String(error.message || error).slice(0, 70)}`;
+        });
       } catch (error) {
         currentLevel = 0;
         document.querySelector('#launch-status').textContent = 'Не удалось запустить AR. Обнови страницу и попробуй ещё раз.';
@@ -643,7 +797,7 @@
         track.box.style.width = `${track.values.width}px`;
         track.box.style.height = `${track.values.height}px`;
       });
-      if (currentLevel === 3) drawTrackedHands(hands, metrics);
+      if (currentLevel === 1 || currentLevel === 3) drawTrackedHands(hands, metrics);
       visualHandTracks.forEach((track, key) => {
         if (!activeKeys.has(key)) {
           track.box.remove();
@@ -654,8 +808,9 @@
     };
 
     const drawTrackedHands = (hands, metrics) => {
-      const canvas = document.querySelector('#hand-lines');
-      if (!canvas) return;
+      const canvas = document.querySelector(currentLevel === 1 ? '#first-level-hands' : '#hand-lines');
+      const source = document.querySelector('#hand-source');
+      if (!canvas || !source || !source.width || !source.height) return;
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
       const width = metrics.viewportWidth;
       const height = metrics.viewportHeight;
@@ -666,39 +821,77 @@
       const context = canvas.getContext('2d');
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, width, height);
-      const fingers = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]];
+      if (!handCutoutCanvas) handCutoutCanvas = document.createElement('canvas');
+      if (!handMaskCanvas) handMaskCanvas = document.createElement('canvas');
+      [handCutoutCanvas, handMaskCanvas].forEach((buffer) => {
+        if (buffer.width !== canvas.width || buffer.height !== canvas.height) {
+          buffer.width = canvas.width;
+          buffer.height = canvas.height;
+        }
+      });
+      const cut = handCutoutCanvas.getContext('2d');
+      const mask = handMaskCanvas.getContext('2d');
+      const scene = document.querySelector(currentLevel === 1 ? 'a-scene[crystal-hunt]' : '#sparring-scene');
+      const camera = scene && scene.camera;
       hands.forEach((landmarks) => {
         const points = landmarks.map((point) => landmarkToScreen(point, metrics));
         const palmSpan = Math.hypot(points[5].x - points[17].x, points[5].y - points[17].y);
         if (!Number.isFinite(palmSpan) || palmSpan < 8) return;
-        context.lineCap = 'round';
-        context.lineJoin = 'round';
-        context.fillStyle = 'rgba(255, 126, 145, 0.26)';
-        context.strokeStyle = 'rgba(255, 187, 194, 0.78)';
-        context.lineWidth = Math.max(3, palmSpan * 0.09);
-        context.beginPath();
-        [0, 1, 2, 5, 9, 13, 17].forEach((index, order) => {
-          const point = points[index];
-          if (order === 0) context.moveTo(point.x, point.y);
-          else context.lineTo(point.x, point.y);
-        });
-        context.closePath();
-        context.fill();
-        fingers.forEach((finger) => {
-          context.beginPath();
-          finger.forEach((index, order) => {
-            const point = points[index];
-            if (order === 0) context.moveTo(point.x, point.y);
-            else context.lineTo(point.x, point.y);
+        const palm = palmCenter(landmarks, metrics);
+        const spanPixels = Math.hypot((landmarks[5].x - landmarks[17].x) * source.width, (landmarks[5].y - landmarks[17].y) * source.height);
+        const handDepth = spanPixels > 1 ? 0.085 * source.width / (spanPixels * 2 * Math.tan(63 * Math.PI / 360)) : Infinity;
+        let hiddenByObject = false;
+        if (camera && scene) {
+          camera.updateMatrixWorld(true);
+          const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
+          scene.querySelectorAll(currentLevel === 1 ? '.crystal, .flower-pot' : '#bag-dummy').forEach((object) => {
+            if (hiddenByObject || !object.object3D || object.object3D.visible === false || object.dataset.collected === 'yes') return;
+            object.object3D.updateMatrixWorld(true);
+            const world = object.object3D.getWorldPosition(new THREE.Vector3());
+            const ndc = world.clone().project(camera);
+            const sx = (ndc.x * 0.5 + 0.5) * width;
+            const sy = (-ndc.y * 0.5 + 0.5) * height;
+            const distance = cameraPosition.distanceTo(world);
+            const radius = Math.max(20, width * 0.11 / Math.max(0.5, distance));
+            if (Math.hypot(sx - palm.x, sy - palm.y) < radius && distance + 0.12 < handDepth) hiddenByObject = true;
           });
+        }
+        if (hiddenByObject) return;
+        cut.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        cut.clearRect(0, 0, width, height);
+        cut.drawImage(source, metrics.offsetX, metrics.offsetY, metrics.width, metrics.height);
+        mask.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        mask.clearRect(0, 0, width, height);
+        mask.fillStyle = '#fff';
+        mask.strokeStyle = '#fff';
+        mask.lineCap = 'round';
+        mask.lineJoin = 'round';
+        mask.beginPath();
+        [0, 5, 9, 13, 17].forEach((index, order) => order ? mask.lineTo(points[index].x, points[index].y) : mask.moveTo(points[index].x, points[index].y));
+        mask.closePath();
+        mask.fill();
+        [[0,1,2,3,4],[0,5,6,7,8],[0,9,10,11,12],[0,13,14,15,16],[0,17,18,19,20]].forEach((finger) => {
+          mask.beginPath();
+          mask.lineWidth = Math.max(12, palmSpan * (finger[1] === 1 ? 0.26 : 0.22));
+          finger.forEach((index, order) => order ? mask.lineTo(points[index].x, points[index].y) : mask.moveTo(points[index].x, points[index].y));
+          mask.stroke();
+        });
+        mask.beginPath();
+        mask.ellipse(palm.x, palm.y, palmSpan * 0.54, palmSpan * 0.63, 0, 0, Math.PI * 2);
+        mask.fill();
+        cut.globalCompositeOperation = 'destination-in';
+        cut.drawImage(handMaskCanvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
+        cut.globalCompositeOperation = 'source-over';
+        context.drawImage(handCutoutCanvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
+        context.strokeStyle = 'rgba(255,190,196,.38)';
+        context.lineWidth = Math.max(1, palmSpan * 0.012);
+        context.lineCap = 'round';
+        [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]].forEach(([a,b]) => {
+          context.beginPath();
+          context.moveTo(points[a].x, points[a].y);
+          context.lineTo(points[b].x, points[b].y);
           context.stroke();
         });
-        context.beginPath();
-        [5, 9, 13, 17].forEach((index) => {
-          context.moveTo(points[0].x, points[0].y);
-          context.lineTo(points[index].x, points[index].y);
-        });
-        context.stroke();
       });
     };
 
@@ -784,8 +977,8 @@
       const camera = scene && scene.camera;
       const dummy = document.querySelector('#bag-dummy');
       const top = document.querySelector('#dummy-top');
-      const video = document.querySelector('#hands-video');
-      if (!scene || !camera || !dummy || !dummy.object3D || !dummy.object3D.visible || !video || !video.videoWidth) return;
+      const video = document.querySelector('#hand-source');
+      if (!scene || !camera || !dummy || !dummy.object3D || !dummy.object3D.visible || !video || !video.width) return;
       const project = (point) => {
         dummy.object3D.updateMatrixWorld(true);
         camera.updateMatrixWorld(true);
@@ -830,8 +1023,8 @@
         const dx = (center.x - targetX) / radiusX;
         const dy = (center.y - targetY) / radiusY;
         const normalizedDistance = Math.hypot(dx, dy);
-        const rawPalmSpan = Math.hypot((landmarks[5].x - landmarks[17].x) * video.videoWidth, (landmarks[5].y - landmarks[17].y) * video.videoHeight);
-        const focalPixels = video.videoWidth / (2 * Math.tan(63 * Math.PI / 360));
+        const rawPalmSpan = Math.hypot((landmarks[5].x - landmarks[17].x) * video.width, (landmarks[5].y - landmarks[17].y) * video.height);
+        const focalPixels = video.width / (2 * Math.tan(63 * Math.PI / 360));
         const measuredDepth = rawPalmSpan > 1 ? 0.075 * focalPixels / rawPalmSpan : Infinity;
         const handDepth = previous && Number.isFinite(previous.depth) && Number.isFinite(measuredDepth)
           ? previous.depth + (measuredDepth - previous.depth) * 0.72
@@ -906,19 +1099,53 @@
       }
     };
 
+    const checkCrystalHandContacts = (hands, metrics, source) => {
+      const scene = document.querySelector('a-scene[crystal-hunt]');
+      const game = scene && scene.components && scene.components['crystal-hunt'];
+      const camera = scene && scene.camera;
+      if (!game || !game.started || !camera || !source || !source.width) return;
+      camera.updateMatrixWorld(true);
+      const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
+      hands.forEach((landmarks) => {
+        const center = palmCenter(landmarks, metrics);
+        const span = Math.hypot((landmarks[5].x - landmarks[17].x) * source.width, (landmarks[5].y - landmarks[17].y) * source.height);
+        const handDepth = span > 1 ? 0.085 * source.width / (span * 2 * Math.tan(63 * Math.PI / 360)) : Infinity;
+        scene.querySelectorAll('.crystal').forEach((crystal) => {
+          if (crystal.dataset.collected === 'yes' || !crystal.object3D) return;
+          crystal.object3D.updateMatrixWorld(true);
+          const world = crystal.object3D.getWorldPosition(new THREE.Vector3());
+          const distance = cameraPosition.distanceTo(world);
+          if (distance > 1.15 || Math.abs(handDepth - distance) > 0.48) return;
+          const ndc = world.project(camera);
+          const sx = (ndc.x * 0.5 + 0.5) * metrics.viewportWidth;
+          const sy = (-ndc.y * 0.5 + 0.5) * metrics.viewportHeight;
+          const radius = Math.max(22, metrics.viewportWidth * 0.10 / Math.max(0.45, distance));
+          if (Math.hypot(sx - center.x, sy - center.y) <= radius) game.collect(crystal, true);
+        });
+      });
+      if (game.started && game.collected < 5) game.status.textContent = hands.length
+        ? 'Подойди близко к кристаллу и коснись его ладонью.'
+        : 'Покажи руку в кадре, чтобы собирать кристаллы.';
+    };
+
     const handDetectionFrame = () => {
-      if ((currentLevel !== 2 && currentLevel !== 3) || !handTask) return;
+      if ((currentLevel !== 1 && currentLevel !== 2 && currentLevel !== 3) || !handTask) return;
       if (currentLevel === 3 && dummyHp <= 0) { handFrame = 0; return; }
       const now = performance.now();
-      const video = document.querySelector('#hands-video');
-      if (now - lastHandInference >= 8 && video.readyState >= 2 && video.videoWidth && video.videoHeight && video.currentTime !== lastVideoTime) {
+      const source = currentLevel === 2 ? document.querySelector('#hands-video') : document.querySelector('#hand-source');
+      const imageWidth = currentLevel === 2 ? source.videoWidth : source.width;
+      const imageHeight = currentLevel === 2 ? source.videoHeight : source.height;
+      const frameStamp = currentLevel === 2 ? source.currentTime : handCameraFrame;
+      const ready = currentLevel === 2 ? source.readyState >= 2 : imageWidth > 0 && imageHeight > 0;
+      if (now - lastHandInference >= 28 && ready && imageWidth && imageHeight && frameStamp !== lastVideoTime) {
         lastHandInference = now;
-        lastVideoTime = video.currentTime;
+        lastVideoTime = frameStamp;
         try {
-          const result = handTask.detectForVideo(video, now);
+          const result = handTask.detectForVideo(source, now);
           const hands = result.landmarks || [];
-          const metrics = positionHandBoxes(hands, video.videoWidth, video.videoHeight, result.handedness || []);
+          const metrics = positionHandBoxes(hands, imageWidth, imageHeight, result.handedness || []);
           if (currentLevel === 3) updateSparringHands(result, hands, metrics, now);
+          else if (currentLevel === 1) checkCrystalHandContacts(hands, metrics, source);
           else document.querySelector('#hand-status').textContent = hands.length
             ? `Рук в кадре: ${hands.length} · рамка внутри ладони`
             : 'Модель готова — покажи руку в кадре';
@@ -947,6 +1174,8 @@
       if (video) video.srcObject = null;
       document.querySelector('#hand-boxes').replaceChildren();
       clearTrackedHands();
+      const firstCanvas = document.querySelector('#first-level-hands');
+      if (firstCanvas) firstCanvas.getContext('2d').clearRect(0, 0, firstCanvas.width, firstCanvas.height);
     };
 
     const startHandLevel = async (level = 2) => {
@@ -972,39 +1201,28 @@
       try {
         if (level === 3 && !window.XR8) throw new Error('AR tracking is still loading');
         if (level === 3) {
-          document.querySelector('#hand-status').textContent = 'Запускаю пространственный трекинг…';
+          document.querySelector('#hand-status').textContent = 'Запускаю AR-камеру и сканирование комнаты…';
+          document.querySelector('#room-scan-panel').hidden = false;
+          document.querySelector('#room-scan-fill').style.width = '0%';
+          document.querySelector('#start-dummy').disabled = true;
           await mountSparringScene();
           if (currentLevel !== 3) return;
-        }
-        document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру для рук…';
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
-        handStream = await openMainRearCamera();
-        if (currentLevel !== level) {
-          handStream.getTracks().forEach((track) => track.stop());
-          handStream = null;
-          return;
-        }
-        const video = document.querySelector('#hands-video');
-        video.srcObject = handStream;
-        await video.play();
-        document.querySelector('#hand-status').textContent = level === 3
-          ? 'Основная камера включена. Загружаю систему боя…'
-          : 'Основная камера включена. Загружаю распознавание рук…';
-        const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
-        const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
-        const taskOptions = {
-          baseOptions: {modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'GPU'},
-          runningMode: 'VIDEO',
-          numHands: 2,
-          minHandDetectionConfidence: 0.38,
-          minHandPresenceConfidence: 0.36,
-          minTrackingConfidence: 0.32,
-        };
-        try {
-          handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
-        } catch (gpuError) {
-          taskOptions.baseOptions.delegate = 'CPU';
-          handTask = await vision.HandLandmarker.createFromOptions(files, taskOptions);
+          await loadHandLandmarker();
+          document.querySelector('#hand-status').textContent = 'Одна основная камера AR включена. Медленно обойди комнату.';
+        } else {
+          document.querySelector('#hand-status').textContent = 'Запрашиваю основную камеру для рук…';
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Camera API unavailable');
+          handStream = await openMainRearCamera();
+          if (currentLevel !== level) {
+            handStream.getTracks().forEach((track) => track.stop());
+            handStream = null;
+            return;
+          }
+          const video = document.querySelector('#hands-video');
+          video.srcObject = handStream;
+          await video.play();
+          document.querySelector('#hand-status').textContent = 'Основная камера включена. Загружаю распознавание рук…';
+          await loadHandLandmarker();
         }
         if (currentLevel !== level) {
           releaseHandResources();
@@ -1044,7 +1262,7 @@
 
     const returnToMenu = () => {
       hideSettings(false);
-      if (currentLevel === 2 || currentLevel === 3) releaseHandResources();
+      if (currentLevel === 1 || currentLevel === 2 || currentLevel === 3) releaseHandResources();
       const sparringScene = document.querySelector('#sparring-scene');
       if (currentLevel === 3) {
         try { if (window.XR8) XR8.stop(); } catch (error) { /* Stop XR before removing its scene. */ }
@@ -1144,12 +1362,20 @@
     </section>
   </div>
 
+  <canvas id="hand-source" hidden aria-hidden="true"></canvas>
+  <canvas id="first-level-hands" aria-hidden="true"></canvas>
   <div id="hand-screen" hidden>
     <video id="hands-video" autoplay playsinline muted></video>
     <div class="hand-shade"></div>
     <div id="hand-boxes"></div>
     <canvas id="hand-lines" aria-hidden="true"></canvas>
     <div class="hand-bar"><button id="hand-back" type="button" aria-label="В главное меню">‹</button><div class="hand-title">Уровень 2 · Проверка рук</div></div>
+    <div id="room-scan-panel" hidden>
+      <strong>Сканирование комнаты</strong>
+      <span id="room-scan-copy">Наведи камеру на стены и пол, затем медленно обойди комнату.</span>
+      <div id="room-scan-track"><span id="room-scan-fill"></span></div>
+      <button id="start-dummy" type="button" disabled>Включить манекен</button>
+    </div>
     <div id="dummy-hud" hidden>
       <div id="damage-pop"></div>
       <div id="dummy-name">Манекен, Танис</div>
@@ -1168,12 +1394,12 @@
   </div>
 
   <template id="sparring-scene-template">
-    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
+    <a-scene id="sparring-scene" sparring-world embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440; shadowMapEnabled: true; shadowMapType: pcfsoft" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
       <a-camera id="sparring-camera" position="0 1.6 0" raycaster="objects: .cantap; far: 10" cursor="fuse: false; rayOrigin: mouse" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
-      <a-entity light="type: directional; intensity: 1.05" position="-2 4 3"></a-entity>
+      <a-entity light="type: directional; intensity: 1.05; castShadow: true; shadowMapHeight: 512; shadowMapWidth: 512; shadowCameraFar: 12" position="-2 4 3"></a-entity>
       <a-light type="ambient" intensity="0.75"></a-light>
-      <a-box id="sparring-ground" class="cantap" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.22"></a-box>
-      <a-entity id="bag-dummy" position="0 0 -2.2" scale="0.72 0.72 0.72" visible="false">
+      <a-box id="sparring-ground" class="cantap" shadow="receive: true" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.22"></a-box>
+      <a-entity id="bag-dummy" position="0 0 -2.2" scale="0.72 0.72 0.72" shadow="cast: true; receive: false" visible="false">
         <a-cylinder position="0 0.15 0" radius="0.47" height="0.30" segments-radial="8" material="color: #24243a; metalness: 0.32; roughness: 0.42"></a-cylinder>
         <a-cylinder position="0 0.31 0" radius="0.40" height="0.05" segments-radial="8" material="color: #62f5dd; emissive: #126861; emissive-intensity: 0.18; metalness: 0.42; roughness: 0.3"></a-cylinder>
         <a-entity id="dummy-top" position="0 0.55 0" dummy-spring>
@@ -1201,12 +1427,12 @@
   </template>
 
   <template id="ar-scene-template">
-    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
+    <a-scene crystal-hunt embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: false; colorManagement: true; powerPreference: high-performance; highRefreshRate: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440; shadowMapEnabled: true; shadowMapType: pcfsoft" xrextras-loading xrextras-runtime-error xrweb="allowedDevices: mobile; cameraDirection: back">
       <a-assets></a-assets>
       <a-camera id="camera" position="0 1.6 0" raycaster="objects: .cantap, .clickable; far: 12" cursor="fuse: false; rayOrigin: mouse"></a-camera>
-      <a-entity light="type: directional; intensity: 0.9" position="1 4 2"></a-entity>
+      <a-entity light="type: directional; intensity: 0.9; castShadow: true; shadowMapHeight: 512; shadowMapWidth: 512; shadowCameraFar: 12" position="1 4 2"></a-entity>
       <a-light type="ambient" intensity="0.65"></a-light>
-      <a-box id="ground" class="cantap" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28"></a-box>
+      <a-box id="ground" class="cantap" shadow="receive: true" scale="60 2 60" position="0 -0.99 0" material="shader: shadow; transparent: true; opacity: 0.28"></a-box>
     </a-scene>
   </template>
 </body>
